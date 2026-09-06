@@ -11,7 +11,10 @@ import { run, collectCommits, summarize } from '../server/history.js'
 
 const out = path.resolve(process.argv[2] || 'dist')
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
+// The hosting repository itself comes first (the Pages demo opens on it).
+const SELF = process.env.GITHUB_REPOSITORY || process.env.DEMO_SELF || ''
 const DEMOS = [
+  ...(SELF ? [{ name: SELF, note: 'this project' }] : []),
   { name: 'expressjs/express', note: 'Node' },
   { name: 'pallets/flask', note: 'Python' },
   { name: 'gin-gonic/gin', note: 'Go' },

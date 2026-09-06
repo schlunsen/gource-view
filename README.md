@@ -11,6 +11,15 @@ plays a handful of pre-built repositories, including fullscreen video mode with
 music. Loading *any* repository, branch selection, trending and MP4 export need
 the self-hosted server below.
 
+![Gource View playing expressjs/express](docs/demo.gif)
+
+| | |
+|---|---|
+| ![The viewer](docs/screenshots/app.png) | ![Title card](docs/screenshots/title-card.png) |
+| ![Contributors flying to the files they touch](docs/screenshots/history.png) | ![Closing leaderboard](docs/screenshots/leaderboard.png) |
+
+**Example video:** [expressjs/express, 1080p, 37 s, with music](https://github.com/schlunsen/gource-view/releases/latest) (release asset).
+
 ## Self-host
 
 ```bash

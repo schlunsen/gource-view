@@ -10,7 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..')
 const filter = process.argv.slice(2)
 const scratch = process.env.S || path.join(root, 'checks', 'out')
-const skip = new Set(['check-prod-export.mjs', 'check-real.mjs', 'check-static.mjs']) // these need a deployed instance (BASE/REPO env)
+const skip = new Set(['check-prod-export.mjs', 'check-real.mjs', 'check-static.mjs', 'check-shots.mjs']) // these need a deployed instance (BASE/REPO env)
 const checks = readdirSync(here).filter(f => f.startsWith('check-') && f.endsWith('.mjs') && !skip.has(f) && (!filter.length || filter.some(x => f.includes(x)))).sort()
 
 const dev = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', '5173', '--strictPort'], { cwd: root, stdio: 'ignore' })
