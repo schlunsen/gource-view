@@ -8,22 +8,27 @@ const FONT_SANS = '"Space Grotesk", sans-serif', FONT_MONO = '"JetBrains Mono", 
 
 /** Subtle WebAudio effects: a blip per commit, a soft whoosh for bursts. */
 function makeEffects() {
-  let ac = null
+  let ac = null, lastBlip = -Infinity, lastWhoosh = -Infinity
   const ensure = () => { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)() } catch { ac = null } } return ac }
   return {
     resume() { const c = ensure(); if (c && c.state === 'suspended') c.resume().catch(() => {}) },
     blip(files) {
       const c = ensure(); if (!c) return
-      const t0 = c.currentTime, amp = 0.05 * Math.min(1, 0.45 + Math.log2(1 + files) / 7)
+      const t0 = c.currentTime
+      // Dense history stays quiet instead of stacking dozens of voices.
+      if (t0 - lastBlip < 0.12) return
+      lastBlip = t0
+      const amp = 0.018 * Math.min(1, 0.45 + Math.log2(1 + files) / 7)
       const o = c.createOscillator(), g = c.createGain()
-      o.frequency.setValueAtTime(660, t0); o.frequency.exponentialRampToValueAtTime(330, t0 + 0.14)
-      g.gain.setValueAtTime(amp, t0); g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.14)
-      o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + 0.15)
-      if (files >= 20) {
+      o.frequency.setValueAtTime(440, t0); o.frequency.exponentialRampToValueAtTime(330, t0 + 0.28)
+      g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(amp, t0 + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28); g.gain.linearRampToValueAtTime(0, t0 + 0.30)
+      o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + 0.31)
+      if (files >= 20 && t0 - lastWhoosh >= 0.8) {
+        lastWhoosh = t0
         const len = Math.floor(c.sampleRate * 0.7), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0)
-        let lp = 0; for (let i = 0; i < len; i++) { lp += ((Math.random() * 2 - 1) - lp) * 0.2; d[i] = lp }
+        let lp = 0; for (let i = 0; i < len; i++) { lp += ((Math.random() * 2 - 1) - lp) * 0.06; d[i] = lp }
         const s = c.createBufferSource(), ng = c.createGain()
-        s.buffer = buf; ng.gain.setValueAtTime(0.0001, t0); ng.gain.linearRampToValueAtTime(0.12, t0 + 0.15); ng.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.7)
+        s.buffer = buf; ng.gain.setValueAtTime(0, t0); ng.gain.linearRampToValueAtTime(0.025, t0 + 0.2); ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65); ng.gain.linearRampToValueAtTime(0, t0 + 0.7)
         s.connect(ng).connect(c.destination); s.start(t0)
       }
     },
@@ -132,7 +137,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       const a = audioRef.current
       if (a) {
         const target = !s.playing || s.elapsed >= total ? 0 : Math.min(1, s.elapsed / 1.5) * Math.min(1, Math.max(0, (total - s.elapsed) / 3))
-        a.volume = Math.max(0, Math.min(1, target * 0.85))
+        a.volume = Math.max(0, Math.min(1, target * 0.30))
         if (s.playing && s.elapsed < total && a.paused) a.play().catch(() => {})
         if ((!s.playing || s.elapsed >= total) && !a.paused) a.pause()
       }
@@ -143,7 +148,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     return () => { disposed = true; cancelAnimationFrame(raf); ro.disconnect(); renderer?.destroy(); fx.close() }
   }, [repo, duration, privacy, clock, restartKey])
 
-  useEffect(() => { const a = audioRef.current; if (!a) return; a.currentTime = 0; if (music !== 'none' && playing) a.play().catch(() => {}) }, [music, restartKey, playing])
+  useEffect(() => { const a = audioRef.current; if (!a) return; a.volume = 0; a.currentTime = 0; if (music !== 'none' && playing) a.play().catch(() => {}) }, [music, restartKey, playing])
 
   return (
     <div ref={host} className="video-mode" data-phase={phase} onClick={e => { if (e.target === host.current) setPlaying(p => !p) }}>
