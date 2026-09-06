@@ -28,6 +28,7 @@ await page.screenshot({ path: `${S}/video-intro.png` })
 await page.waitForFunction(() => document.querySelector('.video-mode')?.dataset.phase === 'history', null, { timeout: 8000 })
 await page.waitForTimeout(3000)
 await page.screenshot({ path: `${S}/video-history.png` })
+assert.ok(await page.locator('.video-mode audio').evaluate(a => a.volume > 0 && a.volume <= 0.30), 'music stays at the quieter level')
 // music is changeable: select, next-track button, and the m key each switch the audio source
 const src = () => page.locator('.video-mode audio').getAttribute('src').catch(() => null)
 await page.getByRole('combobox', { name: 'Music track' }).selectOption('cipher'); await page.waitForTimeout(200)
