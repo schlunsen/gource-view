@@ -4,6 +4,10 @@ import { createComposition } from './gource/composition.js'
 import { musicFileUrl } from './api.js'
 
 const INTRO = 3, OUTRO = 4
+const timecode = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
+function preference(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
+}
 const FONT_SANS = '"Space Grotesk", sans-serif', FONT_MONO = '"JetBrains Mono", monospace'
 
 /** Subtle WebAudio effects: a blip per commit, a soft whoosh for bursts. */
@@ -43,6 +47,27 @@ function makeEffects() {
 export default function VideoMode({ repo, privacy, clock = true, tracks, onClose }) {
   const host = useRef(null), canvasRef = useRef(null), audioRef = useRef(null)
   const [duration, setDuration] = useState(30)
+  const total = INTRO + duration + OUTRO
+  const [elapsed, setElapsed] = useState(0)
+  const [volume, setVolume] = useState(() => {
+    const saved = preference('gource-video-volume', 30)
+    return typeof saved === 'number' && Number.isFinite(saved) ? Math.max(0, Math.min(100, saved)) : 30
+  })
+  const [audioBlocked, setAudioBlocked] = useState(false)
+  const [audioFailed, setAudioFailed] = useState(false)
+  const fxRef = useRef(null)
+  const togglePlayback = () => {
+    if (state.current.elapsed >= total) { setRestartKey(k => k + 1); setPlaying(true) }
+    else setPlaying(p => !p)
+  }
+  const seek = value => { state.current.seek = Math.max(0, Math.min(total, value)); setElapsed(state.current.seek) }
+  const playAudio = () => {
+    fxRef.current?.resume()
+    const a = audioRef.current
+    if (a) a.play().then(() => setAudioBlocked(false)).catch(e => {
+      if (e.name === 'NotAllowedError') setAudioBlocked(true)
+    })
+  }
   const remembered = (() => { try { return localStorage.getItem('gource-video-music') } catch { return null } })()
   const [music, setMusicState] = useState(remembered && (remembered === 'none' || tracks.some(t => t.id === remembered)) ? remembered : (tracks[0]?.id || 'none'))
   const [toast, setToast] = useState('')
@@ -58,13 +83,25 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     const ids = [...tracks.map(t => t.id), 'none']
     setMusic(ids[(ids.indexOf(music) + dir + ids.length) % ids.length])
   }
-  const [effects, setEffects] = useState(true)
+  const [effects, setEffects] = useState(() => preference('gource-video-effects', true) !== false)
   const [playing, setPlaying] = useState(true)
   const [phase, setPhase] = useState('intro')
   const [controlsVisible, setControlsVisible] = useState(true)
   const [restartKey, setRestartKey] = useState(0)
   const state = useRef({ elapsed: 0, playing: true, effects: true })
-  state.current.playing = playing; state.current.effects = effects
+  state.current.playing = playing; state.current.effects = effects; state.current.volume = volume / 100
+  useEffect(() => {
+    try {
+      localStorage.setItem('gource-video-volume', JSON.stringify(volume))
+      localStorage.setItem('gource-video-effects', JSON.stringify(effects))
+    } catch { /* Storage can be disabled. */ }
+  }, [volume, effects])
+  useEffect(() => () => clearTimeout(toastTimer.current), [])
+  useEffect(() => {
+    const previous = document.activeElement
+    host.current?.focus()
+    return () => previous?.focus?.()
+  }, [])
 
   // fullscreen on entry, back out on exit
   useEffect(() => {
@@ -84,29 +121,43 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     return () => { clearTimeout(timer); window.removeEventListener('mousemove', show); window.removeEventListener('touchstart', show) }
   }, [])
 
-  // keyboard: space pause, esc exit, r restart
+  // Let native selects, sliders and buttons keep their own keyboard behavior.
   useEffect(() => {
     const onKey = e => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose() }
-      else if (e.key === ' ') { e.preventDefault(); setPlaying(p => !p) }
-      else if (e.key === 'r') setRestartKey(k => k + 1)
-      else if (e.key === 'm' || e.key === 'M') stepMusic(e.shiftKey ? -1 : 1)
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
       setControlsVisible(true)
-      e.stopPropagation()
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); return }
+      if (e.key === 'Tab') {
+        const nodes = [...host.current.querySelectorAll('button, select, input')].filter(el => !el.disabled)
+        const first = nodes[0], last = nodes.at(-1)
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === host.current)) { e.preventDefault(); last?.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+        return
+      }
+      if (e.target.closest('input, select, textarea, button, [contenteditable="true"]')) return
+      switch (e.key.toLowerCase()) {
+        case ' ': togglePlayback(); break
+        case 'r': setRestartKey(k => k + 1); setPlaying(true); break
+        case 'm': stepMusic(e.shiftKey ? -1 : 1); break
+        case 'arrowleft': seek(state.current.elapsed - 5); break
+        case 'arrowright': seek(state.current.elapsed + 5); break
+        default: return
+      }
+      e.preventDefault()
     }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose, music, tracks]) // eslint-disable-line react-hooks/exhaustive-deps
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, music, tracks, total]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // the render loop: one renderer + composition per (repo, duration, privacy, restart)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !repo) return
     const ctx = canvas.getContext('2d')
-    const fx = makeEffects()
+    const fx = makeEffects(); fxRef.current = fx
     const config = { title: '', privacy, intro: INTRO, outro: OUTRO, duration, credit: '' }
     let renderer, composition, raf, last = performance.now(), W = 1920, H = 1080, events = [], nextEvent = 0, disposed = false
-    state.current.elapsed = 0
+    state.current.elapsed = 0; state.current.seek = null; setElapsed(0)
     const size = () => {
       const r = host.current.getBoundingClientRect()
       const portrait = r.height > r.width
@@ -127,36 +178,62 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       if (disposed) return
       const dt = Math.min(0.1, (now - last) / 1000); last = now
       const s = state.current
+      if (s.seek != null) {
+        s.elapsed = s.seek; s.seek = null
+        nextEvent = events.findIndex(e => e.t > s.elapsed)
+        if (nextEvent < 0) nextEvent = events.length
+        const a = audioRef.current
+        if (a && Number.isFinite(a.duration) && a.duration > 0) a.currentTime = s.elapsed % a.duration
+      }
       if (s.playing && s.elapsed < total + 1) {
         s.elapsed += dt
         while (nextEvent < events.length && events[nextEvent].t <= s.elapsed) { if (s.effects) fx.blip(events[nextEvent].files); nextEvent++ }
       }
+      const shown = Math.min(total, Math.floor(s.elapsed * 10) / 10)
+      setElapsed(p => p === shown ? p : shown)
+      if (s.elapsed >= total && s.playing) setPlaying(false)
       const t = composition.drawFrame(Math.min(s.elapsed, total + 1), canvas)
       setPhase(p => (p === t.phase ? p : t.phase))
       // music: fade in over 1.5 s, out over the last 3 s, paused with playback
       const a = audioRef.current
       if (a) {
         const target = !s.playing || s.elapsed >= total ? 0 : Math.min(1, s.elapsed / 1.5) * Math.min(1, Math.max(0, (total - s.elapsed) / 3))
-        a.volume = Math.max(0, Math.min(1, target * 0.30))
-        if (s.playing && s.elapsed < total && a.paused) a.play().catch(() => {})
-        if ((!s.playing || s.elapsed >= total) && !a.paused) a.pause()
+        // Smooth track starts and volume changes; never retry blocked play every frame.
+        const desired = target * s.volume
+        a.volume = Math.max(0, Math.min(1, a.volume + (desired - a.volume) * (1 - Math.exp(-dt / 0.25))))
       }
       raf = requestAnimationFrame(loop)
     }
     fx.resume()
     raf = requestAnimationFrame(loop)
-    return () => { disposed = true; cancelAnimationFrame(raf); ro.disconnect(); renderer?.destroy(); fx.close() }
+    return () => { disposed = true; cancelAnimationFrame(raf); ro.disconnect(); renderer?.destroy(); fx.close(); fxRef.current = null }
   }, [repo, duration, privacy, clock, restartKey])
 
-  useEffect(() => { const a = audioRef.current; if (!a) return; a.volume = 0; a.currentTime = 0; if (music !== 'none' && playing) a.play().catch(() => {}) }, [music, restartKey, playing])
+  // Reset only for a new track or replay, never for pause/resume.
+  useEffect(() => {
+    const a = audioRef.current
+    if (a) { a.volume = 0; a.currentTime = 0 }
+    setAudioBlocked(false); setAudioFailed(false)
+  }, [music, restartKey, duration])
+  useEffect(() => {
+    if (playing) playAudio()
+    else audioRef.current?.pause()
+  }, [music, restartKey, duration, playing])
+
 
   return (
-    <div ref={host} className="video-mode" data-phase={phase} onClick={e => { if (e.target === host.current) setPlaying(p => !p) }}>
+    <div ref={host} className="video-mode" role="dialog" aria-modal="true" aria-label="Video mode" tabIndex={-1} data-phase={phase} onClick={e => { if (e.target === host.current || e.target === canvasRef.current) togglePlayback() }}>
       <canvas ref={canvasRef} className="video-canvas" aria-label="Video playback" />
-      {music !== 'none' && <audio ref={audioRef} src={musicFileUrl(music)} loop preload="auto" />}
+      {music !== 'none' && <audio ref={audioRef} src={musicFileUrl(music)} loop preload="auto" onError={() => setAudioFailed(true)} />}
       {toast && <div className="video-toast" role="status">{toast}</div>}
-      <div className={`video-controls ${controlsVisible || !playing || phase === 'end' ? 'is-visible' : ''}`} onClick={e => e.stopPropagation()} onMouseEnter={() => setControlsVisible(true)}>
-        <button type="button" onClick={() => setPlaying(p => !p)} aria-label={playing ? 'Pause' : 'Play'} className="video-play">{playing ? '❚❚' : '▶'}</button>
+      <div className={`video-controls ${controlsVisible || !playing || audioBlocked || audioFailed || phase === 'end' ? 'is-visible' : ''}`} onClick={e => e.stopPropagation()} onMouseEnter={() => setControlsVisible(true)}>
+        <div className="video-timeline">
+          <span className="video-phase">{phase === 'intro' ? 'Opening' : phase === 'history' ? 'History' : 'Leaderboard'}</span>
+          <input type="range" aria-label="Playback position" aria-valuetext={`${timecode(elapsed)} of ${timecode(total)}`} min="0" max={total} step="0.1" value={elapsed} onChange={e => seek(+e.target.value)} />
+          <span className="video-time">{timecode(elapsed)} <span>/ {timecode(total)}</span></span>
+        </div>
+        <div className="video-control-row">
+        <button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause' : 'Play'} className="video-play">{playing ? '❚❚' : '▶'}</button>
         <button type="button" onClick={() => { setRestartKey(k => k + 1); setPlaying(true) }}>↺ Replay</button>
         <label>Length <select value={duration} onChange={e => { setDuration(+e.target.value); setRestartKey(k => k + 1) }}><option value={15}>15 s</option><option value={30}>30 s</option><option value={60}>60 s</option></select></label>
         <span className="video-music" role="group" aria-label="Music">
@@ -164,9 +241,13 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
           <select value={music} onChange={e => setMusic(e.target.value)} aria-label="Music track">{tracks.map(t => <option key={t.id} value={t.id}>♪ {t.title}</option>)}<option value="none">♪ No music</option></select>
           <button type="button" aria-label="Next track" onClick={() => stepMusic(1)}>›</button>
         </span>
+        <label className="video-volume">Volume <input type="range" aria-label="Music volume" min="0" max="100" step="1" value={volume} onChange={e => setVolume(+e.target.value)} /><output>{volume}%</output></label>
         <label><input type="checkbox" checked={effects} onChange={e => setEffects(e.target.checked)} /> effects</label>
-        <span className="video-hint">space pause · m next track · r replay · esc exit</span>
+        <span className="video-hint">space pause · ← → seek · m music · esc exit</span>
         <button type="button" onClick={onClose} className="video-exit">Exit ×</button>
+        </div>
+        {audioBlocked && <button type="button" className="video-audio-notice" onClick={playAudio}>Enable audio</button>}
+        {audioFailed && <span className="video-audio-notice" role="status">Track unavailable — try another track.</span>}
       </div>
     </div>
   )
