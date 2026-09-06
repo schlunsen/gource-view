@@ -1,0 +1,29 @@
+import { chromium } from 'playwright'
+import assert from 'node:assert/strict'
+const S = process.env.S
+const browser = await chromium.launch({ headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+const errors = []; page.on('pageerror', e => errors.push(e.message))
+const from = 1700000000, to = 1701000000
+const result = name => ({ repo: name, commits: [{ hash: '1', ts: from, name: 'Ada', files: [{ p: 'a.js', a: 1, d: 0 }] }, { hash: '2', ts: to, name: 'Ada', files: [{ p: 'b.js', a: 1, d: 0 }] }], stats: { from, to, commits: 2, authors: 1, loc: 2, topAuthors: [['Ada', 2]] } })
+const loads = []
+await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'expressjs/express', gitea: null } }))
+await page.route('**/api/trending', r => r.fulfill({ json: { fetchedAt: Date.now() - 3600000 * 5, source: 'github.com/trending', repos: [{ name: 'acme/rocket', description: 'Fast rockets', language: 'Rust', starsWeek: 1234, stars: 50701, sizeMb: 12 }, { name: 'big/model', description: 'Weights', language: 'Python', starsWeek: 9000, stars: 90000, sizeMb: 2400 }] } }))
+await page.route('**/api/load', r => { loads.push(r.request().postDataJSON()); r.fulfill({ json: { job: 'j' } }) })
+await page.route('**/api/status/*', r => r.fulfill({ json: { status: 'done', result: result(loads[loads.length - 1].repo) } }))
+await page.goto('http://127.0.0.1:5173/')
+await page.getByRole('button', { name: 'Pause', exact: true }).click()
+await page.getByRole('button', { name: /Trending/ }).click()
+const list = page.getByRole('listbox', { name: 'Trending repositories' })
+await list.waitFor()
+assert.equal(await list.getByRole('option').count(), 2)
+assert.match(await list.innerText(), /1\.2k this week/)
+assert.match(await list.innerText(), /large/)
+await page.screenshot({ path: `${S}/trending.png` })
+await list.getByRole('option').first().click()
+await page.waitForTimeout(500)
+assert.equal(loads[loads.length - 1].repo, 'acme/rocket')
+assert.equal(await page.getByRole('listbox', { name: 'Trending repositories' }).count(), 0)
+assert.deepEqual(errors, [])
+console.log('trending check ok')
+await browser.close()

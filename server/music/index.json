@@ -1,0 +1,13 @@
+{
+  "license": "CC BY 4.0",
+  "artist": "Kevin MacLeod",
+  "source": "https://incompetech.com",
+  "credit": "Music by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0 — https://creativecommons.org/licenses/by/4.0/",
+  "tracks": [
+    { "id": "floating-cities", "title": "Floating Cities", "mood": "ambient, weightless", "file": "floating-cities.mp3" },
+    { "id": "deliberate-thought", "title": "Deliberate Thought", "mood": "calm, focused", "file": "deliberate-thought.mp3" },
+    { "id": "cipher", "title": "Cipher", "mood": "tech, driving", "file": "cipher.mp3" },
+    { "id": "digital-lemonade", "title": "Digital Lemonade", "mood": "upbeat, playful", "file": "digital-lemonade.mp3" },
+    { "id": "crypto", "title": "Crypto", "mood": "dark, electronic", "file": "crypto.mp3" }
+  ]
+}

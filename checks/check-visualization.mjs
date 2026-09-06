@@ -1,0 +1,28 @@
+import { chromium } from 'playwright'
+import assert from 'node:assert/strict'
+const browser = await chromium.launch({headless:true})
+const page = await browser.newPage({viewport:{width:1440,height:900}})
+const errors=[];page.on('pageerror',e=>errors.push(e.message))
+const from=1700000000,to=1701000000
+const commits=Array.from({length:100},(_,i)=>({hash:String(i),ts:from+i*(to-from)/99,name:'Developer '+i%4,files:Array.from({length:5},(_,j)=>({p:`src/module${i%12}/file${j+i}.js`,a:10,d:2}))}))
+const result={repo:'example/project',commits,stats:{from,to,commits:100,authors:4,loc:5000,topAuthors:[['Developer 0',25]]}}
+await page.route('**/api/load',r=>r.fulfill({json:{job:'test'}}))
+await page.route('**/api/status/test',r=>r.fulfill({json:{status:'done',result}}))
+await page.goto('http://127.0.0.1:5173')
+await page.getByRole('button',{name:'Pause',exact:true}).click()
+await page.getByRole('slider').focus(); await page.keyboard.press('End'); await page.waitForTimeout(100); assert.equal(await page.getByRole('slider').inputValue(), String(to))
+await page.waitForTimeout(500)
+await page.screenshot({path:'/tmp/gource-desktop.png'})
+const before=await page.locator('canvas').evaluate(c=>c.toDataURL())
+await page.mouse.move(750,450);await page.mouse.wheel(0,-500);await page.waitForTimeout(200)
+assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),before)
+await page.getByRole('button',{name:'Reset view'}).click()
+await page.getByRole('button',{name:'Play',exact:true}).click()
+await page.getByRole('button',{name:'Pause',exact:true}).waitFor()
+await page.setViewportSize({width:390,height:844})
+await page.getByRole('slider').focus(); await page.keyboard.press('End'); await page.waitForTimeout(100); assert.equal(await page.getByRole('slider').inputValue(), String(to));await page.waitForTimeout(300)
+await page.screenshot({path:'/tmp/gource-mobile.png'})
+assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+assert.deepEqual(errors,[])
+console.log('Browser checks passed: render, seek, replay, zoom, reset, mobile fit; no runtime errors.')
+await browser.close()

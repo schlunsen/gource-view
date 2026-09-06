@@ -1,0 +1,33 @@
+name: Demo (GitHub Pages)
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'   # refresh the demo repositories weekly
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: Build the viewer in static mode
+        run: VITE_STATIC=1 VITE_REPO_URL="https://github.com/${{ github.repository }}" npx vite build --base="/${{ github.event.repository.name }}/"
+      - name: Bake demo repositories and music
+        run: node scripts/build-static.mjs dist
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: ${{ steps.deployment.outputs.page_url }} }
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

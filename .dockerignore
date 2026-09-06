@@ -1,0 +1,11 @@
+node_modules
+.git
+.gitignore
+*.md
+tmp
+*.log
+.vite-hmr-override.mjs
+
+dist
+checks/
+checks/out/
