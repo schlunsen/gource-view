@@ -78,8 +78,11 @@ refreshed at most every 10 minutes; parsed histories are cached per branch tip.
   where the repository path is replaced by your title (or “Private repository”).
 - **Video mode** (`v`, or ▶ Video): plays the export composition fullscreen —
   title card, paced history, leaderboard — with a music bed and subtle effects.
-  Space pauses, `r` replays, Esc exits. The scoreboard carries an analog clock
-  showing the history's time of day.
+  Scrub the timeline or use ←/→ to seek five seconds. Space pauses, `r` replays,
+  `m` changes music, Esc exits. Music fades in smoothly; volume and effects
+  preferences are remembered. Pausing keeps your place in the music. Controls
+  stay visible while hovered or focused and fit smaller screens. The scoreboard
+  carries an analog clock showing the history's time of day.
 - **Trending**: GitHub's trending-this-week list (scraped once a day, cached on
   disk, search-API fallback, clone size flagged when large) — one click loads a repo.
 - Press `?` for every keyboard shortcut.
