@@ -122,3 +122,7 @@ source; `GITEA_ORG` narrows the picker to one organisation, `GITEA_LABEL` names
 it in the UI and `DEFAULT_REPO` (e.g. `gitea:org/repo`) picks what loads first.
 Repositories from that instance can be typed as `gitea:owner/name` or chosen
 from the picker.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Bundled music is CC BY 4.0 by Kevin MacLeod, see [server/music/LICENSE](server/music/LICENSE).
