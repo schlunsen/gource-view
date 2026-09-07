@@ -1,14 +1,12 @@
-// Backend access with a static mode for the GitHub Pages demo: there, the
-// viewer reads pre-built JSON for a few repositories and the music files
-// directly; loading arbitrary repositories, exports and trending need the
-// self-hosted server.
+// Static hosting supports prebuilt examples and Git history processed on-device.
+import { cachedHistory, historyKey } from './browser-git/cache.js'
+import { parseRepository, browserLimit } from './browser-git/options.js'
 export const STATIC = import.meta.env.VITE_STATIC === '1'
 export const BASE = import.meta.env.BASE_URL || '/'
 export const REPO_URL = import.meta.env.VITE_REPO_URL || 'https://github.com'
 
 let indexPromise = null
 const demoIndex = () => (indexPromise ||= json(`${BASE}data/index.json`).catch(e => { indexPromise = null; throw e }))
-const norm = s => String(s || '').trim().toLowerCase().replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '').replace(/\/+$/, '')
 
 async function json(url, options) {
   const r = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) })
@@ -19,17 +17,19 @@ async function json(url, options) {
 
 export async function getConfig() {
   if (!STATIC) return json('/api/config')
-  const idx = await demoIndex()
+  const idx = await demoIndex().catch(() => ({ demos: [] }))
   return { defaultRepo: idx.demos[0]?.name || '', gitea: null, static: true, demos: idx.demos, builtAt: idx.builtAt }
 }
 
-/** Start a load. Returns { job } (server) or { job } for a demo slug (static). */
+/** Start a server job, prebuilt example, or browser worker job. */
 export async function startLoad(repo, options) {
   if (!STATIC) return json('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repo, options }) })
-  const idx = await demoIndex()
-  const demo = idx.demos.find(d => d.name.toLowerCase() === norm(repo) || d.slug === norm(repo))
-  if (!demo) { const e = new Error(`This demo hosts ${idx.demos.length} pre-built repositories (${idx.demos.map(d => d.name).join(', ')}). Run Gource View yourself to load any repository — see the README.`); e.status = 404; throw e }
-  return { job: demo.slug, static: true }
+  const name = parseRepository(repo), maxCommits = browserLimit(options?.maxCommits ?? 300)
+  const idx = await demoIndex().catch(() => ({ demos: [] }))
+  const demo = idx.demos.find(d => d.name.toLowerCase() === name.toLowerCase())
+  if (demo && maxCommits === 300 && !options?.ref && !options?.refresh && !await cachedHistory(historyKey(name, '', maxCommits))) return { job: demo.slug, static: true }
+  const { startBrowserLoad } = await import('./browser-git/client.js')
+  return startBrowserLoad(name, { ...options, maxCommits })
 }
 
 export async function pollStatus(job) {
@@ -38,8 +38,9 @@ export async function pollStatus(job) {
     const s = await r.json()
     return { ok: r.ok, ...s }
   }
+  if (job.startsWith('browser-')) return (await import('./browser-git/client.js')).browserStatus(job)
   const result = await json(`${BASE}data/${job}.json`)
-  return { ok: true, status: 'done', result }
+  return { ok: true, status: 'done', result: { ...result, prebuilt: true } }
 }
 
 export async function musicTracks() {
@@ -49,3 +50,7 @@ export async function musicTracks() {
 export const musicFileUrl = id => STATIC ? `${BASE}music/${encodeURIComponent(id)}.mp3` : `/api/music/${encodeURIComponent(id)}/file`
 export const trending = () => STATIC ? Promise.reject(new Error('Trending needs the server.')) : json('/api/trending')
 export const giteaRepos = () => STATIC ? Promise.resolve({ repos: [] }) : json('/api/gitea/repos')
+
+export async function cancelJob(job) {
+  if (STATIC && job?.startsWith('browser-')) (await import('./browser-git/client.js')).cancelBrowserLoad(job)
+}

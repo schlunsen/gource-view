@@ -11,11 +11,16 @@
     "start": "npm run dev",
     "test": "node --test tests/*.test.mjs",
     "test:video": "TEST_VIDEO_EXPORT=1 node --test tests/video-export.test.mjs",
-    "check": "node checks/run.mjs"
+    "check": "node checks/run.mjs",
+    "check:browser-git": "node scripts/check-browser-git.mjs"
   },
   "dependencies": {
+    "@isomorphic-git/lightning-fs": "4.7.0",
     "@tailwindcss/vite": "^4.3.0",
+    "buffer": "6.0.3",
+    "diff": "9.0.0",
     "express": "^5.2.1",
+    "isomorphic-git": "1.41.9",
     "playwright": "1.58.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

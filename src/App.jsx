@@ -4,8 +4,9 @@ import GiteaPicker from './GiteaPicker.jsx'
 import TrendingPanel from './TrendingPanel.jsx'
 import RepoDiscovery from './RepoDiscovery.jsx'
 import VideoMode from './VideoMode.jsx'
-import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, musicTracks, giteaRepos as fetchGiteaRepos } from './api.js'
+import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTracks, giteaRepos as fetchGiteaRepos } from './api.js'
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
+import { clearHistories } from './browser-git/cache.js'
 import { createGource } from './gource/renderer.js'
 
 const DEFAULT_REPO = 'expressjs/express'
@@ -42,7 +43,7 @@ export default function App() {
   const lastLoad = useRef(null)
   const [loadSeconds, setLoadSeconds] = useState(0)
   const [error, setError] = useState(null)
-  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && [0, 300, 1000, 1500, 3000].includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 300)
+  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && (STATIC ? [300, 1000, 1500, 3000] : [0, 300, 1000, 1500, 3000]).includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 300)
   const refRef = useRef(PARAMS.get('ref') || '') // branch override; '' = the repository default
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(SPEEDS.includes(+PARAMS.get('speed')) ? +PARAMS.get('speed') : 1)
@@ -54,6 +55,7 @@ export default function App() {
   const canvasRef = useRef(null)
   const gourceRef = useRef(null)
   const pollRef = useRef(null)
+  const activeJob = useRef(null)
   const loadId = useRef(0)
   const [flyover, setFlyover] = useState(PARAMS.get('flyover') !== '0')
   const flyoverRef = useRef(PARAMS.get('flyover') !== '0')
@@ -75,6 +77,7 @@ export default function App() {
   const actions = useRef({})
 
   const stop = useCallback(() => {
+    if (activeJob.current) { void cancelJob(activeJob.current); activeJob.current = null }
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }, [])
 
@@ -88,17 +91,19 @@ export default function App() {
     return () => clearInterval(timer)
   }, [loading])
 
-  const load = useCallback(async (name, branch = '') => {
+  const load = useCallback(async (name, branch = '', settings = {}) => {
+    const limit = settings.maxCommits ?? maxCommits
     const id = ++loadId.current
     stop()
-    lastLoad.current = { name, branch }
+    lastLoad.current = { name, branch, settings }
     gourceRef.current?.pause()
     setError(null); setLoading(true); setLoadSeconds(0)
     const fail = message => { stop(); setLoading(false); setProgress(null); setError(message) }
-    setProgress({ pct: 0, detail: 'Contacting server…' })
+    setProgress({ pct: 0, detail: STATIC ? 'Opening repository history…' : 'Contacting server…' })
     try {
-      const { job } = await startLoad(name, { maxCommits, ...(branch ? { ref: branch } : {}) })
-      if (id !== loadId.current) return
+      const { job } = await startLoad(name, { ...settings, maxCommits: limit, ...(branch ? { ref: branch } : {}) })
+      if (id !== loadId.current) { void cancelJob(job); return }
+      activeJob.current = job
       let polling = false
       let finished = false, failures = 0
       const started = Date.now()
@@ -114,7 +119,7 @@ export default function App() {
           if (s.status === 'done') {
             finished = true
             stop(); setLoading(false); setProgress(null)
-            const data = { ...s.result, jobKey: job, loadLimit: maxCommits }
+            const data = { ...s.result, jobKey: job, loadLimit: s.result.maxCommits ?? limit }
             let g
             try {
               gourceRef.current?.destroy(); gourceRef.current = null
@@ -349,7 +354,7 @@ export default function App() {
           <GiteaPicker label={config.gitea.label} repos={giteaRepos} onPick={name => { setRepoInput(`gitea:${name}`); load(`gitea:${name}`) }} />
         )}
 
-        {!STATIC && <select
+        <select
           value={maxCommits}
           onChange={(e) => setMaxCommits(+e.target.value)}
           aria-label="Max commits to load"
@@ -361,8 +366,8 @@ export default function App() {
           <option value={1000}>1 000 commits</option>
           <option value={1500}>1 500 commits</option>
           <option value={3000}>3 000 commits</option>
-          <option value={0}>All (slow)</option>
-        </select>}
+          {!STATIC && <option value={0}>All (slow)</option>}
+        </select>
 
         {repo?.refs?.length > 1 && (
           <select
@@ -383,6 +388,15 @@ export default function App() {
 
       </header>
       <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />
+
+      {STATIC && <div className="browser-history-bar">
+        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a></span></span>
+        <div>
+          {repo && <button type="button" disabled={loading} onClick={() => load(repo.repo, refRef.current, { refresh: true })}>Refresh history</button>}
+          {repo && (repo.prebuilt || repo.browser?.hasMore) && repo.loadLimit < 3000 && <button type="button" disabled={loading} onClick={() => { const n = [300, 1000, 1500, 3000].find(n => n > repo.loadLimit); setMaxCommits(n); load(repo.repo, refRef.current, { maxCommits: n }) }}>Load more history</button>}
+          <button type="button" disabled={loading} onClick={async () => { try { await clearHistories(); setToast('Saved histories cleared') } catch { setToast('Could not clear browser storage') } }}>Clear saved histories</button>
+        </div>
+      </div>}
 
       {/* ── Stage ── */}
       <main className="visual-stage relative flex-1 min-h-0 bg-stage overflow-hidden">
@@ -409,7 +423,7 @@ export default function App() {
               </div>
               <div className="mt-2 font-mono text-[11px] text-ink-500 tnum">{Math.round(progress?.pct ?? 0)}% · {loadSeconds}s elapsed</div>
               <p className="load-hint">{loadSeconds > 15 ? 'Large histories take longer. You can stop waiting and try fewer commits.' : 'Reading commits, mapping files and finding the people behind them.'}</p>
-              <button type="button" className="recovery-button" onClick={cancelLoad}>Stop waiting</button>
+              <button type="button" className="recovery-button" onClick={cancelLoad}>{STATIC ? 'Cancel download' : 'Stop waiting'}</button>
             </div>
           </div>
         )}
@@ -420,7 +434,7 @@ export default function App() {
             <div className="rounded-xl border border-line bg-panel px-5 py-4 max-w-md text-center">
               <div className="font-display font-semibold text-ink-100 text-sm mb-1">Couldn't load that repo</div>
               <div className="font-mono text-[12px] text-ink-300 break-words">{error}</div>
-              <div className="recovery-actions"><button type="button" className="recovery-button" onClick={() => lastLoad.current && load(lastLoad.current.name, lastLoad.current.branch)}>Try again</button>{repo && <button type="button" className="recovery-button" onClick={() => { setError(null); setRepoInput(repo.repo) }}>Back to viewer</button>}</div>
+              <div className="recovery-actions"><button type="button" className="recovery-button" onClick={() => lastLoad.current && load(lastLoad.current.name, lastLoad.current.branch, lastLoad.current.settings)}>Try again</button>{repo && <button type="button" className="recovery-button" onClick={() => { setError(null); setRepoInput(repo.repo) }}>Back to viewer</button>}</div>
             </div>
           </div>
         )}
@@ -449,6 +463,7 @@ export default function App() {
                 <dt className="text-ink-500">lines</dt><dd className="text-right text-ink-100 tnum">{repo.stats.loc.toLocaleString()}</dd>
                 <dt className="text-ink-500">span</dt><dd className="text-right text-ink-300 tnum">{fmtDate(repo.stats.from)} → {fmtDate(repo.stats.to)}</dd>
               </dl>
+              {!!repo.browser?.countsOmitted && <p className="repo-count-note" title="Large or complex text diffs are omitted from line totals; their file activity is still shown.">{repo.browser.countsOmitted} large diffs excluded from lines.</p>}
               {privacy === 'off' && repo.description && <p className="repo-description" title={repo.description}>{repo.description}</p>}
             </div>
             {repo.stats.topAuthors.length > 0 && (
