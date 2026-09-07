@@ -11,9 +11,9 @@ plays a handful of pre-built repositories, including fullscreen video mode with
 music. Loading *any* repository, branch selection, trending and MP4 export need
 the self-hosted server below.
 
-![Animated Flask repository history with branching folders, file activity and contributors](docs/demo.gif)
+![Wee Editor repository visualization with its frontend, backend, desktop and mobile code](docs/demo.gif)
 
-*A moment from `pallets/flask`: 300 commits, 51 contributors, and a growing tree of code, tests, and documentation.*
+*Inside [`schlunsen/wee-editor`](https://github.com/schlunsen/wee-editor): the frontend, backend, desktop, and mobile code of a self-hosted AI agent workspace.*
 
 | | |
 |---|---|
