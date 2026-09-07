@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ExportVideo from './ExportVideo.jsx'
 import GiteaPicker from './GiteaPicker.jsx'
 import TrendingPanel from './TrendingPanel.jsx'
+import RepoDiscovery from './RepoDiscovery.jsx'
 import VideoMode from './VideoMode.jsx'
 import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, musicTracks, giteaRepos as fetchGiteaRepos } from './api.js'
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
@@ -11,11 +12,11 @@ const DEFAULT_REPO = 'expressjs/express'
 
 // Fast clones (≤ 30 MB) with real teams and clear folder trees — each loads in a few seconds.
 const DEFAULT_SUGGESTIONS = [
-  { label: 'pallets/flask', note: 'Python' },
-  { label: 'gin-gonic/gin', note: 'Go' },
-  { label: 'tokio-rs/tokio', note: 'Rust' },
-  { label: 'fastify/fastify', note: 'Node' },
-  { label: 'axios/axios', note: 'JS' },
+  { label: 'pallets/flask', note: 'Python', description: 'A compact web framework with a clear package and test tree.' },
+  { label: 'gin-gonic/gin', note: 'Go', description: 'Follow a web framework growing through community contributions.' },
+  { label: 'tokio-rs/tokio', note: 'Rust', description: 'Explore the runtime behind asynchronous Rust applications.' },
+  { label: 'fastify/fastify', note: 'Node', description: 'Routes, plugins and tests evolving together.' },
+  { label: 'axios/axios', note: 'JS', description: 'The HTTP client connecting applications to the web.' },
 ]
 
 const SPEEDS = [0.5, 1, 2, 4]
@@ -38,8 +39,10 @@ export default function App() {
   const [repo, setRepo] = useState(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(null)
+  const lastLoad = useRef(null)
+  const [loadSeconds, setLoadSeconds] = useState(0)
   const [error, setError] = useState(null)
-  const [maxCommits, setMaxCommits] = useState([0, 300, 1000, 1500, 3000].includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 300)
+  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && [0, 300, 1000, 1500, 3000].includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 300)
   const refRef = useRef(PARAMS.get('ref') || '') // branch override; '' = the repository default
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(SPEEDS.includes(+PARAMS.get('speed')) ? +PARAMS.get('speed') : 1)
@@ -75,31 +78,50 @@ export default function App() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }, [])
 
-  const load = useCallback(async (name, branch = refRef.current) => {
+  const cancelLoad = useCallback(() => {
+    ++loadId.current; stop(); setLoading(false); setProgress(null); setError(null)
+  }, [stop])
+  useEffect(() => {
+    if (!loading) return
+    setLoadSeconds(0)
+    const timer = setInterval(() => setLoadSeconds(s => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [loading])
+
+  const load = useCallback(async (name, branch = '') => {
     const id = ++loadId.current
     stop()
-    if (gourceRef.current) { gourceRef.current.destroy(); gourceRef.current = null }
-    setRepo(null); setError(null); setLoading(true)
+    lastLoad.current = { name, branch }
+    gourceRef.current?.pause()
+    setError(null); setLoading(true); setLoadSeconds(0)
+    const fail = message => { stop(); setLoading(false); setProgress(null); setError(message) }
     setProgress({ pct: 0, detail: 'Contacting server…' })
     try {
       const { job } = await startLoad(name, { maxCommits, ...(branch ? { ref: branch } : {}) })
       if (id !== loadId.current) return
       let polling = false
-      let finished = false
+      let finished = false, failures = 0
+      const started = Date.now()
       pollRef.current = setInterval(async () => {
         if (polling || finished || id !== loadId.current) return
         polling = true
         try {
+          if (Date.now() - started > 10 * 60 * 1000) { finished = true; fail('This load is taking too long. Try a smaller commit limit.'); return }
           const s = await pollStatus(job)
           if (id !== loadId.current) return
+          failures = 0
           if (!s.ok) { finished = true; stop(); setLoading(false); setError(s.error || 'The server lost this load. Try again.'); return }
           if (s.status === 'done') {
             finished = true
             stop(); setLoading(false); setProgress(null)
-            const data = { ...s.result, jobKey: job }
+            const data = { ...s.result, jobKey: job, loadLimit: maxCommits }
+            let g
+            try {
+              gourceRef.current?.destroy(); gourceRef.current = null
+              g = createGource(canvasRef.current, data)
+            } catch (e) { setRepo(null); fail(`Could not display this history: ${e.message}`); return }
             setRepo(data)
-            if (data.ref) refRef.current = data.ref === data.defaultRef ? '' : data.ref
-            const g = createGource(canvasRef.current, data)
+            refRef.current = data.ref && data.ref !== data.defaultRef ? data.ref : ''
             window.__gource = g // test/debug hook
             g.setFlyover(flyoverRef.current)
             g.setAutoPace(paceRef.current)
@@ -117,14 +139,18 @@ export default function App() {
               g.seek(pendingSeek.current); pendingSeek.current = null
               g.pause(); setCurTs(g.time); setPlaying(false)
             } else g.play()
-            actions.current.syncUrl?.(g.time)
           } else if (s.status === 'error') {
             finished = true
             stop(); setLoading(false); setError(s.error)
           } else {
             setProgress(s.progress)
           }
-        } catch { /* retry transient network failures */ }
+        } catch {
+          if (id !== loadId.current) return
+          failures++
+          if (failures >= 5) { finished = true; fail('Connection interrupted. Check your connection and try again.') }
+          else setProgress(p => ({ ...p, detail: `Reconnecting… attempt ${failures} of 5` }))
+        }
         finally { polling = false }
       }, 600)
     } catch (e) {
@@ -168,7 +194,7 @@ export default function App() {
       setConfig(cfg)
       const initial = PARAMS.get('repo') || cfg?.defaultRepo || DEFAULT_REPO // a shared link wins over the server default
       setRepoInput(initial)
-      load(initial)
+      load(initial, refRef.current)
       if (!cfg?.gitea) return
       try {
         const d = await fetchGiteaRepos()
@@ -206,7 +232,7 @@ export default function App() {
   const buildLink = useCallback((t) => {
     const q = new URLSearchParams()
     if (repo) q.set('repo', repo.repo)
-    q.set('max', String(maxCommits))
+    q.set('max', String(repo?.loadLimit ?? maxCommits))
     if (refRef.current) q.set('ref', refRef.current)
     if (repo && t != null) q.set('t', String(Math.round(t)))
     if (speedRef.current !== 1) q.set('speed', String(speedRef.current))
@@ -217,6 +243,7 @@ export default function App() {
     return `${window.location.pathname}?${q}`
   }, [repo, maxCommits])
   const syncUrl = useCallback((t) => { try { window.history.replaceState(null, '', buildLink(t)) } catch { /* sandboxed */ } }, [buildLink])
+  useEffect(() => { if (repo && gourceRef.current) syncUrl(gourceRef.current.time) }, [repo, syncUrl])
   const seekTo = useCallback((t) => {
     const g = gourceRef.current; if (!g || !repo) return
     const clamped = Math.max(repo.stats.from, Math.min(repo.stats.to, t))
@@ -292,7 +319,7 @@ export default function App() {
 
         <form
           className="flex flex-1 min-w-[200px] max-w-xl items-center gap-2"
-          onSubmit={(e) => { e.preventDefault(); if (repoInput.trim()) load(repoInput.trim()) }}
+          onSubmit={(e) => { e.preventDefault(); if (repoInput.trim()) load(repoInput.trim(), repoInput.trim() === repo?.repo ? refRef.current : '') }}
         >
           <label htmlFor="repo" className="sr-only">Repository</label>
           <input
@@ -307,7 +334,7 @@ export default function App() {
           />
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !repoInput.trim()}
             className="rounded-lg bg-accent text-accent-ink font-display font-semibold text-[13px] px-4 transition-colors duration-150 disabled:opacity-55 disabled:cursor-not-allowed"
             style={{ height: 40 }}
           >
@@ -319,7 +346,7 @@ export default function App() {
           <GiteaPicker label={config.gitea.label} repos={giteaRepos} onPick={name => { setRepoInput(`gitea:${name}`); load(`gitea:${name}`) }} />
         )}
 
-        <select
+        {!STATIC && <select
           value={maxCommits}
           onChange={(e) => setMaxCommits(+e.target.value)}
           aria-label="Max commits to load"
@@ -327,17 +354,17 @@ export default function App() {
           className="rounded-lg bg-ink border border-line font-mono text-[11px] text-ink-300 px-2 transition-colors duration-150"
           style={{ height: 40 }}
         >
-          <option value={300}>300</option>
-          <option value={1000}>1 000</option>
-          <option value={1500}>1 500</option>
-          <option value={3000}>3 000</option>
+          <option value={300}>300 commits</option>
+          <option value={1000}>1 000 commits</option>
+          <option value={1500}>1 500 commits</option>
+          <option value={3000}>3 000 commits</option>
           <option value={0}>All (slow)</option>
-        </select>
+        </select>}
 
         {repo?.refs?.length > 1 && (
           <select
             value={repo.ref}
-            onChange={(e) => { const b = e.target.value; refRef.current = b === repo.defaultRef ? '' : b; load(repoInput, b) }}
+            onChange={(e) => { const b = e.target.value; refRef.current = b === repo.defaultRef ? '' : b; load(repo.repo, b) }}
             aria-label="Branch"
             title="Branch to visualize"
             className="rounded-lg bg-ink border border-line font-mono text-[11px] text-ink-300 px-2 max-w-[160px] transition-colors duration-150"
@@ -351,16 +378,8 @@ export default function App() {
 
         {!STATIC && <TrendingPanel onPick={name => { setRepoInput(name); load(name, '') }} />}
 
-        <nav aria-label="Suggested repos" className="hidden lg:flex items-center gap-1 font-mono text-[11px] text-ink-500">
-          <span className="mr-1">try</span>
-          {SUGGESTIONS.map(s => (
-            <button key={s.label} onClick={() => { setRepoInput(s.label); load(s.label) }}
-              className="px-2 py-1 rounded-md transition-colors duration-150 hover:bg-panel2 hover:text-ink-100">
-              {s.label}
-            </button>
-          ))}
-        </nav>
       </header>
+      <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />
 
       {/* ── Stage ── */}
       <main className="visual-stage relative flex-1 min-h-0 bg-stage overflow-hidden">
@@ -369,13 +388,15 @@ export default function App() {
           ref={canvasRef}
           className="absolute inset-0 block"
           role="img"
-          aria-label={repo ? `Animated file-tree history of ${repo.repo}` : 'Repository history visualization'}
+          aria-label={repo ? `Animated file-tree history of ${privacy === 'off' ? repo.repo : 'private repository'}` : 'Repository history visualization'}
         />
 
         {/* Loading */}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-ink/70" role="status">
-            <div className="w-80 max-w-[88%] rounded-xl border border-line bg-panel p-5 shadow-2xl">
+            <div className="load-card w-80 max-w-[88%] rounded-xl border border-line bg-panel p-5 shadow-2xl">
+              <span className="eyebrow">BUILDING YOUR STORY</span>
+              <h2>Bringing history to life</h2>
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-3 h-3 rounded-full bg-accent animate-pulse" aria-hidden="true" />
                 <span className="font-mono text-[12px] text-ink-300">{progress?.detail || 'Working…'}</span>
@@ -383,7 +404,9 @@ export default function App() {
               <div className="h-1.5 rounded-full bg-ink overflow-hidden" aria-hidden="true">
                 <div className="h-full bg-accent rounded-full transition-[width] duration-500" style={{ width: `${progress?.pct ?? 0}%` }} />
               </div>
-              <div className="mt-2 font-mono text-[11px] text-ink-500 tnum">{progress?.pct ?? 0}% — large repos can take a minute</div>
+              <div className="mt-2 font-mono text-[11px] text-ink-500 tnum">{Math.round(progress?.pct ?? 0)}% · {loadSeconds}s elapsed</div>
+              <p className="load-hint">{loadSeconds > 15 ? 'Large histories take longer. You can stop waiting and try fewer commits.' : 'Reading commits, mapping files and finding the people behind them.'}</p>
+              <button type="button" className="recovery-button" onClick={cancelLoad}>Stop waiting</button>
             </div>
           </div>
         )}
@@ -394,9 +417,12 @@ export default function App() {
             <div className="rounded-xl border border-line bg-panel px-5 py-4 max-w-md text-center">
               <div className="font-display font-semibold text-ink-100 text-sm mb-1">Couldn't load that repo</div>
               <div className="font-mono text-[12px] text-ink-300 break-words">{error}</div>
+              <div className="recovery-actions"><button type="button" className="recovery-button" onClick={() => lastLoad.current && load(lastLoad.current.name, lastLoad.current.branch)}>Try again</button>{repo && <button type="button" className="recovery-button" onClick={() => { setError(null); setRepoInput(repo.repo) }}>Back to viewer</button>}</div>
             </div>
           </div>
         )}
+
+        {!repo && !loading && !error && <div className="empty-stage"><span className="eyebrow">EVERY REPOSITORY HAS A STORY</span><h2>Watch yours unfold.</h2><p>Paste a repository above, or explore an example to see code come to life.</p><button type="button" className="recovery-button" onClick={() => { const d = document.querySelector('.repo-discovery'); if (d) d.open = true }}>Explore examples</button></div>}
 
         {repo && !loading && (
           <div className="scene-heading pointer-events-none">
@@ -441,7 +467,7 @@ export default function App() {
             <button aria-label="Zoom in" onClick={() => gourceRef.current?.zoomBy(1.25)} className="text-accent px-1">+</button>
             <button onClick={() => gourceRef.current?.resetView()} className="text-accent">Reset view</button>
             <button aria-pressed={flyover} onClick={toggleFlyover} className="text-accent">Flyover {flyover ? 'on' : 'off'}</button>
-            <button onClick={openVideo} disabled={!repo} className="text-accent" title="Play the export composition fullscreen with music (v)">▶ Video</button>
+            <button onClick={openVideo} disabled={!repo || loading} className="text-accent" title="Play the export composition fullscreen with music (v)">▶ Video</button>
             <button aria-pressed={clock} onClick={toggleClock} title="Show or hide the clock (k)" className={clock ? 'text-accent' : 'text-ink-500'}>Clock {clock ? 'on' : 'off'}</button>
             <button onClick={share} className="text-accent">Share</button>
             <button aria-pressed={privacy !== 'off'} onClick={cyclePrivacy} title="Hide file/folder names (and contributors) for closed-source demos" className={privacy === 'off' ? 'text-accent' : 'text-warn'}>{PRIVACY_LABELS[privacy]}</button>
@@ -492,7 +518,7 @@ export default function App() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
           <button
             onClick={() => gourceRef.current && gourceRef.current.toggle()}
-            disabled={!repo}
+            disabled={!repo || loading}
             aria-label={playing ? 'Pause' : 'Play'}
             className="w-11 h-11 rounded-full bg-accent text-accent-ink font-display font-bold text-lg flex items-center justify-center transition-colors duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
@@ -508,7 +534,7 @@ export default function App() {
               max={repo?.stats.to ?? 1}
               step={repo ? Math.max(1, span / 1000) : 1}
               value={repo ? curTs : 0}
-              disabled={!repo}
+              disabled={!repo || loading}
               onChange={(e) => seekTo(+e.target.value)}
               aria-label="Timeline position"
               aria-valuetext={repo ? fmt(curTs) : undefined}
@@ -519,8 +545,8 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1" role="group" aria-label="Bursts">
-            <button aria-label="Previous burst" disabled={!repo} onClick={() => jumpBurst(-1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">«</button>
-            <button aria-label="Next burst" disabled={!repo} onClick={() => jumpBurst(1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">»</button>
+            <button aria-label="Previous burst" disabled={!repo || loading} onClick={() => jumpBurst(-1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">«</button>
+            <button aria-label="Next burst" disabled={!repo || loading} onClick={() => jumpBurst(1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">»</button>
           </div>
 
           <div className="flex items-center gap-1" role="group" aria-label="Playback speed">

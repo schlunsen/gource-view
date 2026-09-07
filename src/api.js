@@ -7,11 +7,11 @@ export const BASE = import.meta.env.BASE_URL || '/'
 export const REPO_URL = import.meta.env.VITE_REPO_URL || 'https://github.com'
 
 let indexPromise = null
-const demoIndex = () => (indexPromise ||= fetch(`${BASE}data/index.json`).then(r => r.json()))
+const demoIndex = () => (indexPromise ||= json(`${BASE}data/index.json`).catch(e => { indexPromise = null; throw e }))
 const norm = s => String(s || '').trim().toLowerCase().replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '').replace(/\/+$/, '')
 
 async function json(url, options) {
-  const r = await fetch(url, options)
+  const r = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) })
   const d = await r.json().catch(() => ({}))
   if (!r.ok) { const e = new Error(d.error || `${url} → ${r.status}`); e.status = r.status; throw e }
   return d
@@ -34,7 +34,7 @@ export async function startLoad(repo, options) {
 
 export async function pollStatus(job) {
   if (!STATIC) {
-    const r = await fetch('/api/status/' + encodeURIComponent(job))
+    const r = await fetch('/api/status/' + encodeURIComponent(job), { signal: AbortSignal.timeout(15000) })
     const s = await r.json()
     return { ok: r.ok, ...s }
   }
