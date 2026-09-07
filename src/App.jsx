@@ -315,6 +315,9 @@ export default function App() {
             Gource<span className="text-accent">View</span>
           </h1>
           <span className="hidden sm:inline font-mono text-[11px] text-ink-500">CODE IN MOTION</span>
+          {STATIC && <a className="github-source-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+            View on GitHub <span aria-hidden="true">↗</span>
+          </a>}
         </div>
 
         <form
