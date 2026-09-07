@@ -4,7 +4,7 @@
 //  - each folder's radius grows with the area of its whole subtree
 //  - folders only repel when their circles overlap, and sit on a spring at
 //    rest distance (child radius + parent's file-ring radius) from the parent
-//  - files sit on concentric rings around their folder
+//  - files use even spiral packing around their folder
 // Solved once per repository, fully deterministic, so seeking never reflows.
 function hash(s) {
   let h = 2166136261
@@ -98,19 +98,22 @@ export function organicLayout(root, visible) {
     }
   }
 
-  // files on concentric rings around their folder
+  // files packed naturally around their folder
   const positions = new Map(), radii = new Map()
   for (const b of bodies) {
     positions.set(b.n, [b.x, b.y]); radii.set(b.n, b.fileRadius)
     const orientation = unit(hash(b.n.path || 'root')) * Math.PI * 2
-    let ring = 1, cap = Math.max(1, Math.floor(Math.PI)), slot = 0
-    for (const f of b.files) {
+    // Sunflower packing avoids rigid concentric rows while keeping a stable,
+    // even spacing and an empty center for the folder hub.
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+    const outer = Math.max(FILE_D, b.fileRadius - FILE_D * 0.5)
+    b.files.forEach((f, i) => {
       const seed = hash(f.path)
-      const angle = orientation + ((slot + 0.5) / cap) * Math.PI * 2 + ring * 0.7
-      const r = ring * FILE_D * (0.9 + unit(seed) * 0.2)
+      const angle = orientation + i * goldenAngle + (unit(seed) - 0.5) * 0.12
+      const inner = Math.min(FILE_D, outer * 0.45)
+      const r = Math.sqrt(inner * inner + (outer * outer - inner * inner) * (i + 0.5) / b.files.length)
       positions.set(f, [b.x + Math.cos(angle) * r, b.y + Math.sin(angle) * r])
-      if (++slot >= cap) { ring++; cap = Math.max(1, Math.floor(ring * Math.PI)); slot = 0 }
-    }
+    })
   }
   const points = [...positions.values()]
   const minX = Math.min(...points.map(p => p[0])), maxX = Math.max(...points.map(p => p[0]))
