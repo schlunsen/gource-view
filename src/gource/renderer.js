@@ -1,4 +1,5 @@
 import { drawEnergyBeam, drawCommitWave } from './energy.js'
+import { createBackdrop, drawDust, createBloom } from './atmosphere.js'
 import { organicLayout } from './organic-layout.js'
 import { buildContributorCards, initials, dateParts, commitsBefore } from './contributor-cards.js'
 import { buildActors, actorState } from './actors.js'
@@ -301,6 +302,8 @@ export function createGource(canvasEl, repo, options = {}) {
   // right now, and anything not yet born sits on its nearest living ancestor.
   // That is what makes a big import bloom outward instead of dotting the final
   // layout. Cached per frame; cleared at the top of draw().
+  const bloom = createBloom(), backdrop = createBackdrop()
+  let wallClock = 0 // seconds of playback, for atmosphere drift (deterministic in exports)
   let posCache = new Map()
   function graphPos(n) {
     if (n === root) return graph.positions.get(root) || graph.center
@@ -650,6 +653,7 @@ export function createGource(canvasEl, repo, options = {}) {
   }
 
   function draw(dtWall = 0) {
+    wallClock += Math.min(0.1, Math.max(0, dtWall))
     ctx.clearRect(0, 0, width, height)
     posCache = new Map(); presenceCache = new Map()
     fl = flight()
@@ -674,6 +678,13 @@ export function createGource(canvasEl, repo, options = {}) {
     }
     updateCamera(dtWall, focus)
     const ez = effectiveZoom()
+    // Atmosphere sits behind everything: an additive wash, so the page and the
+    // export composition keep painting their own background underneath.
+    if (!reduceMotion) {
+      const [gcx, gcy] = project(graph.center)
+      backdrop(ctx, canvas, gcx, gcy, Math.max(width, height) * 0.34, wallClock)
+      drawDust(ctx, width, height, wallClock, width < 640 ? 40 : 90)
+    }
     const isMobile = width < 640
     const labels = []
     const actorPositions = [], actorLabels = []
@@ -1062,6 +1073,8 @@ export function createGource(canvasEl, repo, options = {}) {
       }
       ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center'
     }
+    // Bloom the graph before the HUD is drawn, so cards and labels stay crisp.
+    if (!reduceMotion) bloom(ctx, canvas, 1)
     lastHovered = dragging ? null : hovered
     drawCards()
     drawDate()
