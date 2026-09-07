@@ -388,7 +388,7 @@ export default function App() {
 
         <ExportVideo repo={repo} privacy={privacy} clock={clock} staticDemo={STATIC} repoUrl={REPO_URL} />
 
-        {!STATIC && <TrendingPanel onPick={name => { setRepoInput(name); load(name, '') }} />}
+        <TrendingPanel staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name, '') }} />
 
       </header>
       <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />

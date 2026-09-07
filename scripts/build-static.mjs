@@ -9,6 +9,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { run, collectCommits, summarize } from '../server/history.js'
 import { createDescriptionLoader } from '../server/repo-description.js'
+import { fetchAllPeriods } from '../server/trending.js'
 const repositoryDescription = createDescriptionLoader({ githubToken: process.env.GITHUB_TOKEN || '' })
 
 const out = path.resolve(process.argv[2] || 'dist')
@@ -43,6 +44,14 @@ for (const demo of only) {
   fs.rmSync(dir, { recursive: true, force: true })
 }
 fs.writeFileSync(path.join(out, 'data', 'index.json'), JSON.stringify({ builtAt: Date.now(), demos: index }))
+// GitHub trending, baked as a static file so Pages needs no server. The
+// workflow runs daily, which matches the server's refresh cadence. Failure
+// leaves the previous deploy's list unavailable but never breaks the build.
+try {
+  const t = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '')
+  fs.writeFileSync(path.join(out, 'data', 'trending.json'), JSON.stringify(t))
+  console.log(`trending: ${Object.entries(t.periods).map(([id, p]) => `${id} ${p.repos.length}`).join(', ')}`)
+} catch (e) { console.warn(`trending unavailable: ${e.message}`) }
 // music: list + files
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'server', 'music', 'index.json'), 'utf8'))
 fs.mkdirSync(path.join(out, 'music'), { recursive: true })
