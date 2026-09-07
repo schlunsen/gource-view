@@ -17,7 +17,8 @@ self.onmessage = async ({ data }) => {
     const repo = parseRepository(data.repo), limit = browserLimit(data.maxCommits), token = data.token || ''
     report({ pct: 2, detail: 'Checking repository…' })
     let meta = null
-    try { meta = await fetchRepo(repo, fetch, token) } catch (e) { if (e instanceof RateLimitError || /not found|rejected the token/.test(e.message)) throw e /* otherwise the clone path decides */ }
+    // Metadata is optional: a rate-limited or offline API must not block a clone, which needs no API at all.
+    try { meta = await fetchRepo(repo, fetch, token) } catch (e) { if (/not found|rejected the token/.test(e.message)) throw e }
     if (meta?.private) throw new Error('Browser loading supports public GitHub repositories only.')
     const mode = chooseMode(meta, data.mode)
     if (mode === 'api') { self.postMessage({ status: 'done', result: await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: `${meta.sizeMb.toLocaleString()} MB repository` }) }); return }

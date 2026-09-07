@@ -67,6 +67,7 @@ export default function App() {
   const privacyRef = useRef(normalizePrivacy(PARAMS.get('privacy')))
   const paceRef = useRef(PARAMS.get('pace') !== '0')
   const pendingSeek = useRef(PARAMS.get('t') ? +PARAMS.get('t') : null)
+  const autoVideo = useRef(PARAMS.get('video') === '1') // a video link opens fullscreen playback once the history is in
   const [showHelp, setShowHelp] = useState(false)
   const [videoMode, setVideoMode] = useState(false)
   const [tracks, setTracks] = useState([])
@@ -150,6 +151,7 @@ export default function App() {
               g.seek(pendingSeek.current); pendingSeek.current = null
               g.pause(); setCurTs(g.time); setPlaying(false)
             } else g.play()
+            if (autoVideo.current) { autoVideo.current = false; g.pause(); setPlaying(false); setVideoMode(true) }
           } else if (s.status === 'error') {
             finished = true
             stop(); setLoading(false); setError(s.error)
@@ -240,7 +242,7 @@ export default function App() {
     return { starts, bins }
   }, [repo, span])
 
-  const buildLink = useCallback((t) => {
+  const buildLink = useCallback((t, video = false) => {
     const q = new URLSearchParams()
     if (repo) q.set('repo', repo.repo)
     q.set('max', String(repo?.loadLimit ?? maxCommits))
@@ -251,6 +253,7 @@ export default function App() {
     if (!paceRef.current) q.set('pace', '0')
     if (privacyRef.current !== 'off') q.set('privacy', privacyRef.current)
     if (!clockRef.current) q.set('clock', '0')
+    if (video) q.set('video', '1')
     return `${window.location.pathname}?${q}`
   }, [repo, maxCommits])
   const syncUrl = useCallback((t) => { try { window.history.replaceState(null, '', buildLink(t)) } catch { /* sandboxed */ } }, [buildLink])
@@ -275,6 +278,8 @@ export default function App() {
     const url = new URL(buildLink(gourceRef.current?.time), window.location.href).toString()
     try { await navigator.clipboard.writeText(url); setToast('Link copied') } catch { setToast(url) }
   }, [buildLink])
+  // A video link opens straight into fullscreen playback of this repository.
+  const videoLink = useCallback(() => new URL(buildLink(null, true), window.location.href).toString(), [buildLink])
   actions.current = { syncUrl, seekTo, jumpBurst, applySpeed, toggleFlyover, togglePace, share, cyclePrivacy, openVideo, toggleClock }
 
   // keyboard shortcuts (ignored while typing or with a dialog open)
@@ -534,7 +539,7 @@ export default function App() {
         )}
       </main>
 
-      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} />}
+      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} />}
 
       {/* ── Transport ── */}
       <footer className="transport border-t border-line bg-panel px-3 py-3 sm:px-5" role="group" aria-label="Playback controls">

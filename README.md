@@ -97,6 +97,8 @@ this renderer.
   stretches. Exports follow the same warp.
 - **Bursts**: orange bins on the activity chart; `n` / `p` or « » jump between them.
 - **Share**: copies a link (`?repo=&ref=&t=&speed=…`) that opens paused at that moment.
+  Add `&video=1` (or use *Copy video link* inside video mode) for a link that opens
+  straight into fullscreen playback with music — handy for sharing a repository's story.
 - **Privacy** (`h`, or the button in the view tools) for closed-source demos:
   *Names hidden* removes every file and folder name (labels, tooltips, the
   repository name); *Names + people hidden* also shows contributors as

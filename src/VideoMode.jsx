@@ -44,7 +44,7 @@ function makeEffects() {
  * Fullscreen "play as video": the export composition (title card → paced
  * history → leaderboard) driven live, with a music bed and subtle effects.
  */
-export default function VideoMode({ repo, privacy, clock = true, tracks, onClose }) {
+export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink }) {
   const host = useRef(null), canvasRef = useRef(null), audioRef = useRef(null)
   const [duration, setDuration] = useState(30)
   const total = INTRO + duration + OUTRO
@@ -244,6 +244,11 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
         <label className="video-volume">Volume <input type="range" aria-label="Music volume" min="0" max="100" step="1" value={volume} onChange={e => setVolume(+e.target.value)} /><output>{volume}%</output></label>
         <label><input type="checkbox" checked={effects} onChange={e => setEffects(e.target.checked)} /> effects</label>
         <span className="video-hint">space pause · ← → seek · m music · esc exit</span>
+        {shareLink && <button type="button" className="video-share" title="Copy a link that opens this repository straight in video mode" onClick={async () => {
+          const url = shareLink()
+          try { await navigator.clipboard.writeText(url); setToast('Video link copied') } catch { setToast(url) }
+          clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 2500)
+        }}>Copy video link</button>}
         <button type="button" onClick={onClose} className="video-exit">Exit ×</button>
         </div>
         {audioBlocked && <button type="button" className="video-audio-notice" onClick={playAudio}>Enable audio</button>}

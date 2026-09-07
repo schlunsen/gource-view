@@ -256,6 +256,8 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .video-controls.is-visible { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
 .video-controls button { color: #64dedb; cursor: pointer; }
 .video-controls button:hover, .video-controls .video-exit:hover { color: #e7edf6; }
+.video-share { height: 32px; border-radius: 8px; border: 1px solid #64dedb55; background: #64dedb14; color: #64dedb; font: 11px var(--font-mono); padding: 0 10px; cursor: pointer; }
+.video-share:hover { background: #64dedb26; }
 .video-play { font-size: 14px; min-width: 24px; }
 .video-controls label { display: flex; align-items: center; gap: 6px; }
 .video-controls select { background: #0b1119; color: #e7edf6; border: 1px solid #7389a244; border-radius: 6px; padding: 3px 6px; font: inherit; }
