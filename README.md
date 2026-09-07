@@ -11,9 +11,9 @@ plays a handful of pre-built repositories, including fullscreen video mode with
 music. Loading *any* repository, branch selection, trending and MP4 export need
 the self-hosted server below.
 
-![Wee Editor repository visualization with its frontend, backend, desktop and mobile code](docs/demo.gif)
+![Nuxt repository history with a dense graph of packages, tests and active contributors](docs/demo.gif)
 
-*Inside [`schlunsen/wee-editor`](https://github.com/schlunsen/wee-editor): the frontend, backend, desktop, and mobile code of a self-hosted AI agent workspace.*
+*Inside [`nuxt/nuxt`](https://github.com/nuxt/nuxt): 600 commits from 72 contributors, touching 1,386 files across the framework, packages, and tests.*
 
 | | |
 |---|---|
