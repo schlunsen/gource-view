@@ -72,7 +72,11 @@ carry gentle activity highlights from parent to child; recently changed files
 shine brighter while older files remain visible. The camera uses a slow, shallow
 orbit. Folder labels choose free space, and contributors spread out around busy
 folders with name pills placed only where they fit. Privacy modes also apply to
-these labels. The viewer, fullscreen playback and MP4 exports share this renderer.
+these labels. A soft nebula, drifting dust and an edge vignette sit behind the
+tree, and a bloom pass gives bright activity a halo. Both are rendered at low
+resolution and blitted once, so the cost stays small; they are skipped under
+reduced-motion settings. The viewer, fullscreen playback and MP4 exports share
+this renderer.
 
 ## Playback
 
