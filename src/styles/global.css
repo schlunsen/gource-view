@@ -258,3 +258,50 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .video-music select { max-width: 200px; }
 .video-toast { position: absolute; left: 50%; top: 10%; transform: translateX(-50%); background: #111b28e6; border: 1px solid #64dedb55; color: #e7edf6; font: 600 14px var(--font-display); padding: 10px 18px; border-radius: 999px; pointer-events: none; animation: video-toast .25s ease-out; }
 @keyframes video-toast { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%); } }
+
+/* Repository discovery lives above the canvas, available at every screen size. */
+.repo-discovery { position: relative; flex-shrink: 0; z-index: 20; background: #0d1722; border-bottom: 1px solid #253040; }
+.repo-discovery summary { list-style: none; display: flex; align-items: center; gap: 20px; padding: 11px 28px; cursor: pointer; font: 11px var(--font-mono); color: #64dedb; }
+.repo-discovery summary::-webkit-details-marker { display: none; }
+.discovery-caption { color: #91a2b8; font: 12px var(--font-display); }
+.discovery-count { margin-left: auto; color: #91a2b8; white-space: nowrap; }
+.repo-discovery[open] summary { background: #172a36; }
+.discovery-panel { position: absolute; top: 100%; left: 16px; right: 16px; max-height: min(70dvh, 650px); overflow-y: auto; padding: 24px; background: #101b29fa; backdrop-filter: blur(20px); border: 1px solid #34475e; border-radius: 0 0 20px 20px; box-shadow: 0 24px 70px #0009; }
+.discovery-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.discovery-heading h2 { font: 500 28px var(--font-display); letter-spacing: -1px; margin: 5px 0; }
+.discovery-heading p { color: #a4b6cb; font-size: 13px; }
+.discovery-heading button { color: #a4b6cb; font-size: 24px; min-width: 36px; cursor: pointer; }
+.discovery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+.discovery-grid button { display: flex; flex-direction: column; text-align: left; gap: 8px; padding: 18px; border: 1px solid #304356; border-radius: 12px; background: linear-gradient(145deg, #1a2c3a, #111c2a); cursor: pointer; transition: border-color .15s, transform .15s; }
+.discovery-grid button:hover { border-color: #64dedb; transform: translateY(-2px); }
+.discovery-language { color: #64dedb; font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }
+.discovery-grid strong { font: 500 22px var(--font-display); letter-spacing: -.5px; }
+.discovery-owner { color: #91a2b8; font: 10px var(--font-mono); overflow-wrap: anywhere; }
+.discovery-description { color: #b4c3d7; font-size: 12px; line-height: 1.6; }
+.discovery-open { margin-top: auto; padding-top: 12px; display: flex; justify-content: space-between; color: #64dedb; font: 11px var(--font-mono); }
+.discovery-empty { color: #a4b6cb; padding: 24px 0; font-size: 13px; }
+.load-card h2 { margin: 8px 0 20px; color: #e7edf6; font: 500 23px var(--font-display); letter-spacing: -.7px; }
+.load-hint { font-size: 12px; line-height: 1.6; color: #91a2b8; margin: 16px 0; }
+.recovery-button { display: inline-block; padding: 9px 14px; border: 1px solid #438b91; border-radius: 8px; color: #86e5e0; font: 12px var(--font-mono); cursor: pointer; }
+.recovery-button:hover { background: #1c333f; }
+.recovery-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
+.empty-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; text-align: center; padding: 24px; }
+.empty-stage h2 { font-size: clamp(28px, 4vw, 48px); letter-spacing: -1.5px; }
+.empty-stage p { max-width: 390px; color: #a4b6cb; line-height: 1.7; font-size: 14px; }
+.trending-list [role=option]:focus { background: #64dedb1f; outline: 1px solid #64dedb; outline-offset: -1px; }
+.view-tools { max-width: calc(100% - 56px); flex-wrap: wrap; gap: 4px 12px; }
+.view-tools > span { display: none; }
+@media (max-width: 640px) {
+  .gource-app { min-height: 100dvh; height: auto; }
+  .visual-stage { min-height: 430px; }
+  .repo-discovery summary { padding: 12px 16px; gap: 8px; font-size: 10px; }
+  .discovery-caption { display: none; }
+  .discovery-panel { left: 8px; right: 8px; padding: 16px; max-height: 65dvh; }
+  .discovery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .discovery-grid button { padding: 12px; }
+  .discovery-grid strong { font-size: 18px; overflow-wrap: anywhere; }
+  .discovery-heading h2 { font-size: 24px; }
+  .view-tools { max-width: calc(100% - 28px); gap: 2px 10px; }
+  .view-tools button { min-height: 34px; }
+  .app-header > .gitea-picker, .app-header > .trending { width: auto; }
+}

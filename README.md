@@ -64,6 +64,14 @@ refreshed at most every 10 minutes; parsed histories are cached per branch tip.
 
 ## Playback
 
+- **Explore repositories** opens a searchable collection of example projects, on
+  desktop and mobile. Search by name, language or description.
+- Fresh visits load **300 commits**. Branch selections stay with their repository.
+  GitHub Pages uses prebuilt histories and only offers available options.
+- Loading a new repository keeps your current visualization until the new one is
+  ready. **Stop waiting** returns to it; failed loads offer **Try again** and
+  **Back to viewer**. Connection retries are bounded instead of spinning forever.
+
 - **Flyover**: slow orbit, tilt and perspective; the camera leans toward where
   commits land and dollies in on big trees. Toggle with the *Flyover* button or `f`.
 - **Auto-pace** (`a`): 1× within a few seconds of a commit, 4× through quiet
