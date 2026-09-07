@@ -48,7 +48,7 @@ export async function musicTracks() {
   return d.tracks || []
 }
 export const musicFileUrl = id => STATIC ? `${BASE}music/${encodeURIComponent(id)}.mp3` : `/api/music/${encodeURIComponent(id)}/file`
-export const trending = () => STATIC ? Promise.reject(new Error('Trending needs the server.')) : json('/api/trending')
+export const trending = () => STATIC ? json(`${BASE}data/trending.json`).catch(e => { throw new Error(e.status === 404 ? 'Trending is not available in this build.' : e.message) }) : json('/api/trending')
 export const giteaRepos = () => STATIC ? Promise.resolve({ repos: [] }) : json('/api/gitea/repos')
 
 export async function cancelJob(job) {

@@ -8,9 +8,9 @@ card, a contributor leaderboard and music.
 
 **[Open the app](https://schlunsen.github.io/gource-view/)** — paste a public GitHub
 repository to clone and explore its history on your own device. Ready-to-play
-examples, branch selection, saved histories and fullscreen playback with music
-work on GitHub Pages. Trending, private/other Git hosts and rendered MP4 exports
-use the self-hosted server below.
+examples, GitHub trending, branch selection, saved histories and fullscreen
+playback with music work on GitHub Pages. Private/other Git hosts and rendered
+MP4 exports use the self-hosted server below.
 
 ![Nuxt repository history with a dense graph of packages, tests and active contributors](docs/demo.gif)
 
@@ -110,8 +110,12 @@ this renderer.
   preferences are remembered. Pausing keeps your place in the music. Controls
   stay visible while hovered or focused and fit smaller screens. The scoreboard
   carries an analog clock showing the history's time of day.
-- **Trending**: GitHub's trending-this-week list (scraped once a day, cached on
-  disk, search-API fallback, clone size flagged when large) — one click loads a repo.
+- **Trending**: GitHub trending across windows — today, this week and this month
+  from github.com/trending, plus the most-starred repositories created in the last
+  3 months and year from the search API. Filter by language or search, clone sizes
+  are flagged when large, and one click loads a repo. Refreshed once a day and
+  cached on disk; on GitHub Pages the same data is baked into `data/trending.json`
+  by the daily workflow, so no server is needed.
 - Press `?` for every keyboard shortcut.
 
 ## Export video
@@ -135,8 +139,8 @@ VITE_STATIC=1 npx vite build --base=/<repo>/
 DEMO_SELF=schlunsen/gource-view node scripts/build-static.mjs dist
 ```
 
-The Pages workflow publishes on changes to `main` and refreshes the prebuilt
-examples weekly. The hosting repository opens by default. Visitors can also
+The Pages workflow publishes on changes to `main` and runs daily to refresh
+GitHub trending and the prebuilt examples. The hosting repository opens by default. Visitors can also
 paste any **public GitHub** repository, choose a branch and load 300–3,000
 commits. **Load more history** expands the selected history; **Refresh history**
 downloads it again. Git runs in a Web Worker so downloading and computing file

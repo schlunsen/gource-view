@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 4 * * 1'   # refresh the demo repositories weekly
+    - cron: '17 4 * * *'   # daily: refresh GitHub trending (and the demo repositories)
   workflow_dispatch:
 permissions:
   contents: read

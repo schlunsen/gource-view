@@ -218,7 +218,7 @@ async function processJob(job, opts) {
 
 const trending = createTrendingStore()
 app.get('/api/trending', async (_req, res) => {
-  try { const t = await trending.get(); res.json({ fetchedAt: t.fetchedAt, source: t.source, repos: t.repos }) }
+  try { const t = await trending.get(); res.json({ fetchedAt: t.fetchedAt, periods: t.periods }) }
   catch (e) { res.status(502).json({ error: `Trending is unavailable right now: ${e.message}` }) }
 })
 setTimeout(() => trending.get().catch(() => {}), 5000) // warm the cache shortly after boot
