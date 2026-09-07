@@ -37,7 +37,8 @@ await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 
 assert.match(await page.locator('main').innerText(), /flask/)
 // export → self-host note; video mode → music from the static files
 await page.getByRole('button', { name: 'Export video' }).click()
-assert.match(await page.locator('.export-dialog').innerText(), /Self-host/)
+await page.waitForFunction(() => !/Checking video support/.test(document.querySelector('.export-dialog')?.innerText || ''))
+assert.match(await page.locator('.export-dialog').innerText(), /Rendered right here in your browser|Self-host/, 'browser export offered, or explained when the browser cannot encode')
 await page.keyboard.press('Escape')
 await page.getByRole('button', { name: /Video/ }).click()
 await page.locator('.video-mode').waitFor()
