@@ -331,3 +331,15 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 @media (max-width: 640px) { .browser-history-bar { padding: 6px 12px; font-size: 9px; } .browser-relay-note { display: none; } }
 
 .repo-count-note { margin-top: 5px; color: var(--color-ink-400); font: 9px/1.4 var(--font-mono); }
+
+/* GitHub token (browser build): stored locally, used for the API loading path */
+.github-token { position: relative; display: inline-block; }
+.github-token-dialog { position: absolute; right: 0; top: 26px; z-index: 40; width: min(380px, calc(100vw - 32px)); background: #111b28fa; border: 1px solid #7389a244; border-radius: 12px; box-shadow: 0 18px 48px #000a; padding: 12px; text-align: left; }
+.github-token-dialog input { width: 100%; box-sizing: border-box; background: #0b1119; border: 1px solid #7389a244; border-radius: 8px; color: #e7edf6; font: 12px var(--font-mono); padding: 8px 10px; outline: none; margin: 8px 0; }
+.github-token-dialog input:focus { border-color: #64dedb; }
+.github-token-lead { margin: 0; font: 11px/1.5 var(--font-mono); color: #a4b6cb; }
+.github-token-actions { display: flex; align-items: center; gap: 12px; margin: 4px 0 8px; }
+.github-token-actions a { font: 10px var(--font-mono); color: #64dedb; }
+.github-token-note { margin: 0; font: 10px/1.5 var(--font-mono); color: #64748b; }
+.github-token-note b { color: #8193aa; font-weight: 500; }
+.browser-rate-note { color: #f0b25e; }

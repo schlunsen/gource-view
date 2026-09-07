@@ -5,14 +5,45 @@ import LightningFS from '@isomorphic-git/lightning-fs'
 import { collectBrowserCommits } from './history.js'
 import { parseRepository, browserLimit } from './options.js'
 import { summarize } from '../history-summary.js'
+import { fetchRepo, chooseMode, collectApiCommits, RateLimitError } from './github-api.js'
 
 globalThis.Buffer = Buffer
 
 const MAX_DOWNLOAD = 100 * 1024 * 1024
+const CAP = /100 MB browser limit|too many Git objects/
 self.onmessage = async ({ data }) => {
   const report = progress => self.postMessage({ status: 'loading', progress })
   try {
-    const repo = parseRepository(data.repo), limit = browserLimit(data.maxCommits)
+    const repo = parseRepository(data.repo), limit = browserLimit(data.maxCommits), token = data.token || ''
+    report({ pct: 2, detail: 'Checking repository…' })
+    let meta = null
+    try { meta = await fetchRepo(repo, fetch, token) } catch (e) { if (e instanceof RateLimitError || /not found|rejected the token/.test(e.message)) throw e /* otherwise the clone path decides */ }
+    if (meta?.private) throw new Error('Browser loading supports public GitHub repositories only.')
+    const mode = chooseMode(meta, data.mode)
+    if (mode === 'api') { self.postMessage({ status: 'done', result: await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: `${meta.sizeMb.toLocaleString()} MB repository` }) }); return }
+    try { self.postMessage({ status: 'done', result: await cloneHistory({ repo, limit, meta, data, report }) }) }
+    catch (e) {
+      if (data.mode === 'clone' || !CAP.test(e.message)) throw e
+      report({ pct: 5, detail: 'Too large to clone in the browser · switching to the GitHub API…' })
+      self.postMessage({ status: 'done', result: await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: 'too large to clone in the browser' }) })
+    }
+  } catch (e) {
+    const error = e.name === 'QuotaExceededError' ? 'Browser storage is full. Clear saved histories or try fewer commits.' : e instanceof RateLimitError ? e.message : /fetch|network|timeout|Load failed/i.test(e.message) ? 'Could not download Git history. Check your connection and try again, or open a ready-to-play example.' : e.message
+    self.postMessage({ status: 'error', error })
+  }
+}
+
+// No Git objects: commit metadata and per-file line counts straight from the API.
+async function apiHistory({ repo, limit, token, meta, ref, report, reason }) {
+  const defaultRef = meta?.defaultRef || 'main', branch = ref || defaultRef
+  const history = await collectApiCommits({ repo, ref: branch, maxCommits: limit, token, onProgress: report })
+  report({ pct: 95, detail: 'Preparing playback…' })
+  return summarize(history.commits, { repo, source: 'github', sourceUrl: `https://github.com/${repo}`, description: meta?.description || '', ref: branch, refs: [...new Set([defaultRef, branch])], defaultRef, maxCommits: limit,
+    browser: { cached: false, source: 'api', reason, hasMore: history.hasMore, rateLimited: history.rateLimited, countsOmitted: history.truncated, requestsUsed: history.requestsUsed, remaining: history.remaining, limit: history.limit, reset: history.reset, tokenUsed: !!token } })
+}
+
+async function cloneHistory({ repo, limit, meta, data, report }) {
+  {
     const fs = new LightningFS(data.database), dir = '/repo'
     await fs.promises.mkdir(dir)
     let received = 0
@@ -47,15 +78,6 @@ self.onmessage = async ({ data }) => {
     })
     const history = await collectBrowserCommits({ fs, dir, maxCommits: limit, onProgress: report })
     if (!history.commits.length) throw new Error('No file changes found in this history. Try a different branch or more commits.')
-    let description = ''
-    try {
-      const r = await fetch(`https://api.github.com/repos/${repo}`, { credentials: 'omit', signal: AbortSignal.timeout(5000) })
-      if (r.ok) description = String((await r.json()).description || '').replace(/\s+/g, ' ').trim().slice(0, 280)
-    } catch { /* optional metadata */ }
-    const result = summarize(history.commits, { repo, source: 'github', sourceUrl: `https://github.com/${repo}`, description, ref, refs: branches, defaultRef, maxCommits: limit, browser: { cached: false, hasMore: history.hasMore, countsOmitted: history.countsOmitted, downloadedBytes: received } })
-    self.postMessage({ status: 'done', result })
-  } catch (e) {
-    const error = e.name === 'QuotaExceededError' ? 'Browser storage is full. Clear saved histories or try fewer commits.' : /fetch|network|timeout|Load failed/i.test(e.message) ? 'Could not download Git history. Check your connection and try again, or open a ready-to-play example.' : e.message
-    self.postMessage({ status: 'error', error })
+    return summarize(history.commits, { repo, source: 'github', sourceUrl: `https://github.com/${repo}`, description: meta?.description || '', ref, refs: branches, defaultRef, maxCommits: limit, browser: { cached: false, source: 'clone', hasMore: history.hasMore, countsOmitted: history.countsOmitted, downloadedBytes: received } })
   }
 }
