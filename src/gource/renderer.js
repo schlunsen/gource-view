@@ -1,3 +1,4 @@
+import { drawEnergyBeam, drawCommitWave } from './energy.js'
 import { organicLayout } from './organic-layout.js'
 import { buildContributorCards, initials, dateParts, commitsBefore } from './contributor-cards.js'
 import { buildActors, actorState } from './actors.js'
@@ -744,12 +745,29 @@ export function createGource(canvasEl, repo, options = {}) {
             const t = (phase + j / 3) % 1, q = 1 - t
             const x = q*q*px + 2*q*t*cx + t*t*nx, y = q*q*py + 2*q*t*cy + t*t*ny
             const a = Math.sin(t * Math.PI) * heat * v.a
+            const tail = Math.max(0, t - 0.14), tq = 1 - tail
+            ctx.strokeStyle = rgba(n.color, a * 0.5); ctx.lineWidth = 2.2 * depth
+            ctx.beginPath(); ctx.moveTo(tq*tq*px + 2*tq*tail*cx + tail*tail*nx, tq*tq*py + 2*tq*tail*cy + tail*tail*ny)
+            ctx.lineTo(x, y); ctx.stroke()
             ctx.fillStyle = rgba(n.color, a * 0.12)
             ctx.beginPath(); ctx.arc(x, y, 5 * depth, 0, Math.PI * 2); ctx.fill()
             ctx.fillStyle = rgba([225, 244, 248], a * 0.75)
             ctx.beginPath(); ctx.arc(x, y, 1.2 * depth, 0, Math.PI * 2); ctx.fill()
           }
         }
+      }
+    }
+
+    // Large commits send bounded, layered waves behind the files and labels.
+    if (!reduceMotion) {
+      const impacts = actorStates.filter(([, st]) => st.acting > 0 && st.travel >= 1)
+        .sort((a, b) => repo.commits[b[1].visit.index].files.length - repo.commits[a[1].visit.index].files.length).slice(0, 4)
+      for (const [actor, st] of impacts) {
+        const count = repo.commits[st.visit.index].files.length
+        if (count < 8) continue
+        const geom = commitGeometry(st.visit.index), [x, y] = project(geom.origin)
+        const radius = Math.min(Math.min(width, height) * 0.38, 45 + Math.sqrt(count) * 12)
+        drawCommitWave(ctx, x, y, radius, actor.col, 1 - st.acting, st.alpha)
       }
     }
 
@@ -922,6 +940,7 @@ export function createGource(canvasEl, repo, options = {}) {
     {
       const ui = uiScale()
       ctx.textBaseline = 'middle'
+      let energyBudget = isMobile ? 64 : 160
       for (const [a, st] of actorStates) {
         const c = repo.commits[st.visit.index]
         let g = st.target
@@ -948,30 +967,41 @@ export function createGource(canvasEl, repo, options = {}) {
           if (actorLabels.some(b => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h)) continue
           ax = x; ay = y; break
         }
+        // A short fading wake follows the contributor's actual approach.
+        if (!reduceMotion && st.travel < 1 && actorPositions.length < 12) {
+          let origin = st.fromPos
+          if (!origin) {
+            const dx = st.target[0] - graph.center[0], dy = st.target[1] - graph.center[1]
+            const length = Math.hypot(dx, dy) || 1, reach = Math.max(graph.width, graph.height) * 0.45 + 60
+            origin = [st.target[0] + dx / length * reach, st.target[1] + dy / length * reach]
+          }
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'
+          let last = [ax, ay]
+          for (let j = 1; j <= 10; j++) {
+            const t = Math.max(0, st.travel - j * 0.035), e = st.fromPos ? easeInOut(t) : easeOutCubic(t)
+            const [x, y] = project([lerp(origin[0], st.target[0], e), lerp(origin[1], st.target[1], e)])
+            const next = [x + ax - ox, y + ay - oy]
+            ctx.strokeStyle = rgba(a.col, alpha * (1 - j / 11) * 0.6); ctx.lineWidth = (1 - j / 11) * r * 0.65
+            ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...next); ctx.stroke(); last = next
+          }
+          ctx.restore()
+        }
         actorPositions.push([ax, ay])
         const geom = commitGeometry(st.visit.index)
         const p = 1 - st.acting
         if (st.acting > 0 && st.travel >= 1 && geom.targets.length) {
           const spike = c.files.length >= spikeThreshold
-          const [sx, sy] = project(geom.origin)
-          if (spike) {
-            // shockwave from where the commit landed out to the farthest file it created
-            const kk = easeOutCubic(Math.min(1, p / 0.6))
-            const radius = Math.min(Math.max(width, height) * 0.6, Math.max(40, geom.reach * cam.scale * zoom * 1.05)) * kk
-            ctx.globalAlpha = (1 - kk) * 0.45 * alpha
-            ctx.strokeStyle = rgba(a.col, 1); ctx.lineWidth = 3 - 2 * kk
-            ctx.beginPath(); ctx.arc(sx, sy, radius, 0, Math.PI * 2); ctx.stroke()
-            ctx.globalAlpha = (1 - kk) * 0.06 * alpha
-            ctx.fillStyle = rgba(a.col, 1)
-            ctx.beginPath(); ctx.arc(sx, sy, radius, 0, Math.PI * 2); ctx.fill()
-            ctx.globalAlpha = 1
-          }
           // beams: heads fly out over the first 45% of the act, then the beams fade
           const reach = Math.min(1, p / 0.45)
           const fade = p < 0.45 ? 1 : 1 - (p - 0.45) / 0.55
           ctx.lineWidth = 1
-          for (const n of geom.targets) {
+          for (const [targetIndex, n] of geom.targets.slice(0, 32).entries()) {
             const [tx, ty] = nodePos(n)
+            if (!reduceMotion) {
+              if (energyBudget-- <= 0) continue
+              drawEnergyBeam(ctx, [ax, ay], [tx, ty], a.col, p, alpha * (spike ? 0.55 : 0.85), targetIndex)
+              continue
+            }
             const hx = lerp(ax, tx, reach), hy = lerp(ay, ty, reach)
             ctx.strokeStyle = rgba(a.col, alpha * fade * (spike ? 0.2 : 0.4))
             ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(hx, hy); ctx.stroke()
