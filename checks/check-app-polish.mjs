@@ -4,7 +4,7 @@ const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
 const errors = []; page.on('pageerror', e => errors.push(e.message))
 const from = 1700000000, to = from + 100000
-const result = (name, ref = 'main') => ({ repo: name, ref, defaultRef: 'main', refs: ['main', 'dev'], commits: Array.from({ length: 20 }, (_, i) => ({ hash: String(i), ts: from + i * (to - from) / 19, name: i % 2 ? 'Ada' : 'Grace', files: [{ p: `src/area${i % 4}/file${i}.js`, a: 2, d: 1 }] })), stats: { from, to, commits: 20, authors: 2, loc: 20, topAuthors: [['Ada', 10], ['Grace', 10]] } })
+const result = (name, ref = 'main') => ({ description: 'A small application for organizing team notes.', repo: name, ref, defaultRef: 'main', refs: ['main', 'dev'], commits: Array.from({ length: 20 }, (_, i) => ({ hash: String(i), ts: from + i * (to - from) / 19, name: i % 2 ? 'Ada' : 'Grace', files: [{ p: `src/area${i % 4}/file${i}.js`, a: 2, d: 1 }] })), stats: { from, to, commits: 20, authors: 2, loc: 20, topAuthors: [['Ada', 10], ['Grace', 10]] } })
 let mode = 'done'
 const loads = []
 await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'example/first' } }))
@@ -17,6 +17,14 @@ await page.route('**/api/status/*', r => {
 })
 await page.goto('http://127.0.0.1:5173/')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
+assert.equal(await page.locator('.repo-description').innerText(), 'A small application for organizing team notes.')
+await page.getByRole('button', { name: 'stats', exact: true }).click()
+assert.equal(await page.locator('.repo-description').isVisible(), false, 'description follows stats toggle')
+await page.getByRole('button', { name: 'stats', exact: true }).click()
+await page.getByRole('button', { name: 'Privacy off', exact: true }).click()
+assert.equal(await page.locator('.repo-description').count(), 0, 'privacy hides project descriptions')
+await page.getByRole('button', { name: 'Names hidden', exact: true }).click()
+await page.getByRole('button', { name: 'Names + people hidden', exact: true }).click()
 assert.equal(loads[0].options.maxCommits, 300, 'fresh visits default to a small history')
 await page.getByRole('combobox', { name: 'Branch' }).selectOption('dev')
 await page.waitForFunction(() => document.querySelector('select[aria-label="Branch"]')?.value === 'dev')

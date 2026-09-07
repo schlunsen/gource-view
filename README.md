@@ -73,6 +73,9 @@ these labels. The viewer, fullscreen playback and MP4 exports share this rendere
 
 ## Playback
 
+- **Stats** includes a short project description from GitHub or the configured
+  Gitea instance when available. Descriptions are hidden in privacy mode.
+
 - **Explore repositories** opens a searchable collection of example projects, on
   desktop and mobile. Search by name, language or description.
 - Fresh visits load **300 commits**. Branch selections stay with their repository.
