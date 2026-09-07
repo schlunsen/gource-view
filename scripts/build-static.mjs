@@ -8,6 +8,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { run, collectCommits, summarize } from '../server/history.js'
+import { createDescriptionLoader } from '../server/repo-description.js'
+const repositoryDescription = createDescriptionLoader({ githubToken: process.env.GITHUB_TOKEN || '' })
 
 const out = path.resolve(process.argv[2] || 'dist')
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -34,7 +36,7 @@ for (const demo of only) {
   const commits = await collectCommits(dir, { maxCommits: 300 })
   let defaultRef = 'main'
   try { defaultRef = (await run('git', ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], { cwd: dir })).stdout.trim().replace(/^origin\//, '') } catch { /* keep */ }
-  const result = summarize(commits, { repo: demo.name, source: 'github', sourceUrl: `https://github.com/${demo.name}`, ref: defaultRef, refs: [defaultRef], defaultRef, maxCommits: 300 })
+  const result = summarize(commits, { description: await repositoryDescription({ source: 'github', repo: demo.name }), repo: demo.name, source: 'github', sourceUrl: `https://github.com/${demo.name}`, ref: defaultRef, refs: [defaultRef], defaultRef, maxCommits: 300 })
   fs.writeFileSync(path.join(out, 'data', `${slug(demo.name)}.json`), JSON.stringify(result))
   index.push({ name: demo.name, slug: slug(demo.name), note: demo.note, commits: result.stats.commits, authors: result.stats.authors, from: result.stats.from, to: result.stats.to })
   console.log(`${result.stats.commits} commits, ${result.stats.authors} authors`)

@@ -305,3 +305,6 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
   .view-tools button { min-height: 34px; }
   .app-header > .gitea-picker, .app-header > .trending { width: auto; }
 }
+
+.repo-description { margin-top: 12px; padding-top: 10px; border-top: 1px solid #7389a222; color: #a4b6cb; font: 12px/1.6 var(--font-display); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+@media (max-width: 640px) { .repo-description { margin-top: 8px; padding-top: 7px; font-size: 10px; -webkit-line-clamp: 5; } }

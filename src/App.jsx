@@ -446,6 +446,7 @@ export default function App() {
                 <dt className="text-ink-500">lines</dt><dd className="text-right text-ink-100 tnum">{repo.stats.loc.toLocaleString()}</dd>
                 <dt className="text-ink-500">span</dt><dd className="text-right text-ink-300 tnum">{fmtDate(repo.stats.from)} → {fmtDate(repo.stats.to)}</dd>
               </dl>
+              {privacy === 'off' && repo.description && <p className="repo-description" title={repo.description}>{repo.description}</p>}
             </div>
             {repo.stats.topAuthors.length > 0 && (
               <div className="author-card rounded-xl bg-panel/90 border border-line px-3.5 py-2.5 backdrop-blur-sm max-h-44 overflow-y-auto">

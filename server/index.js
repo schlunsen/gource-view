@@ -8,6 +8,7 @@ import { parseRepo as parseSource, authHeaders, isValidRef, jobKeyFor } from './
 import { makeLimiter, clientIp, isPrivateAddress, planEviction } from './limits.js'
 import { createTrendingStore } from './trending.js'
 import { run, collectCommits, summarize } from './history.js'
+import { createDescriptionLoader } from './repo-description.js'
 import { musicTrack } from './music.js'
 import dns from 'node:dns'
 
@@ -71,6 +72,8 @@ async function giteaApi(p) {
   if (!r.ok) throw new Error(`Gitea API responded ${r.status}`)
   return r.json()
 }
+
+const repositoryDescription = createDescriptionLoader({ githubToken: GITHUB_TOKEN, giteaLookup: async repo => (await giteaApi(`/repos/${repo.split('/').map(encodeURIComponent).join('/')}`)).description })
 
 let giteaRepoCache = { at: 0, promise: null }
 function listGiteaRepos() {
@@ -155,6 +158,7 @@ async function evictCache() {
 
 async function processJob(job, opts) {
   const dir = path.join(CACHE_DIR, job.dirKey)
+  const description = repositoryDescription(job)
   try {
    await withDirLock(job.dirKey, async () => {
     if (!fs.existsSync(path.join(dir, '.git'))) {
@@ -203,7 +207,7 @@ async function processJob(job, opts) {
     let commits = logCache.get(cacheKey)
     if (!commits) { commits = await collectCommits(dir, { maxCommits: opts.maxCommits, ref: gitRef }); remember(cacheKey, commits) }
     job.progress = { pct: 99, detail: 'Building tree…' }
-    job.result = summarize(commits, { repo: job.repo, source: job.source, sourceUrl: job.url.replace(/\.git$/, ''), ref, refs, defaultRef, maxCommits: opts.maxCommits })
+    job.result = summarize(commits, { description: await description, repo: job.repo, source: job.source, sourceUrl: job.url.replace(/\.git$/, ''), ref, refs, defaultRef, maxCommits: opts.maxCommits })
     job.status = 'done'
     job.progress = { pct: 100, detail: `Ready — ${commits.length} commits` }
   } catch (e) {
