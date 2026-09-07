@@ -7,6 +7,7 @@ import VideoMode from './VideoMode.jsx'
 import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTracks, giteaRepos as fetchGiteaRepos } from './api.js'
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
 import { clearHistories } from './browser-git/cache.js'
+import GithubToken from './GithubToken.jsx'
 import { createGource } from './gource/renderer.js'
 
 const DEFAULT_REPO = 'expressjs/express'
@@ -394,8 +395,9 @@ export default function App() {
       <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />
 
       {STATIC && <div className="browser-history-bar">
-        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a></span></span>
+        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser?.source === 'api' ? `History from the GitHub API · ${repo.browser.reason}` : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a> or the <a href="https://docs.github.com/rest" target="_blank" rel="noreferrer">GitHub API</a></span>{repo?.browser?.rateLimited && <span className="browser-rate-note" role="status"> · GitHub's rate limit stopped this at {repo.stats.commits} commits{repo.browser.tokenUsed ? '' : ' — add a GitHub token for 5,000 requests an hour'}</span>}</span>
         <div>
+          <GithubToken />
           {repo && <button type="button" disabled={loading} onClick={() => load(repo.repo, refRef.current, { refresh: true })}>Refresh history</button>}
           {repo && (repo.prebuilt || repo.browser?.hasMore) && repo.loadLimit < 3000 && <button type="button" disabled={loading} onClick={() => { const n = [300, 1000, 1500, 3000].find(n => n > repo.loadLimit); setMaxCommits(n); load(repo.repo, refRef.current, { maxCommits: n }) }}>Load more history</button>}
           <button type="button" disabled={loading} onClick={async () => { try { await clearHistories(); setToast('Saved histories cleared') } catch { setToast('Could not clear browser storage') } }}>Clear saved histories</button>

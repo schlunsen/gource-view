@@ -147,6 +147,21 @@ downloads it again. Git runs in a Web Worker so downloading and computing file
 changes leave the UI responsive. **Cancel download** stops the worker and
 returns to the previous visualization.
 
+Repositories are loaded one of two ways, chosen automatically:
+
+- **Clone** (the default): one branch is cloned without checking out files,
+  commit trees are compared and text diffs computed locally, all on-device.
+- **GitHub API**: repositories over 250 MB — or any clone that hits the browser
+  limits below — switch to the GitHub REST API instead. Commit metadata and
+  per-file line counts come straight from the API, so repository size stops
+  mattering (a 3.7 GB repository loads in a couple of minutes). The API allows
+  60 requests an hour without a token, enough for about 50 commits; an optional
+  **fine-grained personal token** (public repository read access only) raises
+  that to 5,000. The token is stored in your browser only and sent solely to
+  api.github.com — never to the Git relay. Loads that run out of budget keep the
+  commits already read and say so. GitHub lists at most 300 files per commit;
+  larger commits keep their activity with the remainder omitted from line totals.
+
 The browser clones one branch without checking out files, compares commit trees,
 and computes text diffs locally. Merge commits are excluded, as in the server
 viewer. At a shallow boundary, a commit with an unavailable parent is skipped
@@ -170,8 +185,8 @@ To use a relay you operate, set `VITE_GIT_PROXY` to its HTTPS URL when building,
 or set the GitHub Actions repository variable of the same name. It must implement
 the isomorphic-git CORS proxy protocol. No application server is needed by Pages.
 
-Browser loads stop at 100 MB of downloaded Git data, 150,000 Git objects or eight
-minutes. Large repositories may exceed these limits even with a short history.
+Clone loads stop at 100 MB of downloaded Git data, 150,000 Git objects or eight
+minutes, after which the GitHub API path takes over. Large repositories may exceed these limits even with a short history.
 Binary files keep their activity but contribute zero lines. Text changes over
 1 MB or exceeding the bounded diff budget retain file activity and are flagged
 as omitted from line totals in the stats panel. MP4 export still uses the

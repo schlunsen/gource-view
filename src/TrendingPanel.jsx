@@ -23,7 +23,7 @@ export default function TrendingPanel({ onPick, staticDemo = false }) {
   const [attempt, setAttempt] = useState(0)
   // Browser loads stop at 100 MB of Git data; the server merely gets slow.
   const largeMb = staticDemo ? 100 : 300
-  const largeTitle = mb => staticDemo ? `${mb} MB clone — may exceed the browser download limit` : `${mb} MB clone — slow`
+  const largeTitle = mb => staticDemo ? `${mb} MB — loads through the GitHub API (add a token for longer histories)` : `${mb} MB clone — slow`
   const current = data?.periods?.[period]
   const meta = PERIODS.find(p => p.id === period)
   const fromSearch = current?.source?.startsWith('search')

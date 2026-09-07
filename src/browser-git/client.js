@@ -1,4 +1,5 @@
 import { cachedHistory, saveHistory, historyKey } from './cache.js'
+import { storedToken } from './github-api.js'
 // Keep heavy Git/diff code in the worker; this module only manages jobs and storage.
 const jobs = new Map()
 window.addEventListener('pagehide', () => { for (const state of jobs.values()) state.cancel() })
@@ -31,7 +32,8 @@ export function startBrowserLoad(repo, options = {}) {
       if (data.progress) data.progress.pct = Math.max(state.progress?.pct || 0, data.progress.pct)
       Object.assign(state, data)
     }
-    worker.postMessage({ repo, ...options, database, proxy: import.meta.env.VITE_GIT_PROXY || 'https://cors.isomorphic-git.org' })
+    // The token never touches the Git relay: the worker sends it to api.github.com only.
+    worker.postMessage({ repo, ...options, token: storedToken(), database, proxy: import.meta.env.VITE_GIT_PROXY || 'https://cors.isomorphic-git.org' })
   })().catch(e => { if (!cancelled) { Object.assign(state, { status: 'error', error: e.message }); cleanup() } })
   return { job, static: true }
 }
