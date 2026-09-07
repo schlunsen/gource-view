@@ -11,7 +11,9 @@ plays a handful of pre-built repositories, including fullscreen video mode with
 music. Loading *any* repository, branch selection, trending and MP4 export need
 the self-hosted server below.
 
-![Gource View playing expressjs/express](docs/demo.gif)
+![Animated Flask repository history with branching folders, file activity and contributors](docs/demo.gif)
+
+*A moment from `pallets/flask`: 300 commits, 51 contributors, and a growing tree of code, tests, and documentation.*
 
 | | |
 |---|---|
