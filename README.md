@@ -62,6 +62,15 @@ Pick a **branch** from the selector that appears after a load, and choose how
 much history to read (300 … 3 000 commits, or *All*). Clones are cached and
 refreshed at most every 10 minutes; parsed histories are cached per branch tip.
 
+## Visualization
+
+Files form evenly spaced organic clusters around their folders. Curved branches
+carry gentle activity highlights from parent to child; recently changed files
+shine brighter while older files remain visible. The camera uses a slow, shallow
+orbit. Folder labels choose free space, and contributors spread out around busy
+folders with name pills placed only where they fit. Privacy modes also apply to
+these labels. The viewer, fullscreen playback and MP4 exports share this renderer.
+
 ## Playback
 
 - **Explore repositories** opens a searchable collection of example projects, on

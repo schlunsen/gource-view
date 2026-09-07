@@ -66,3 +66,15 @@ test('folder circles do not overlap once settled', () => {
   }
   assert.equal(overlaps, 0)
 })
+
+test('dense file clusters have breathing room without escaping their folder', () => {
+  const { root, visible } = fixture(1, 100)
+  const { positions } = organicLayout(root, visible)
+  const files = visible.filter(n => n.type === 'file')
+  let closest = Infinity
+  for (let i = 0; i < files.length; i++) for (let j = i + 1; j < files.length; j++) {
+    const [ax, ay] = positions.get(files[i]), [bx, by] = positions.get(files[j])
+    closest = Math.min(closest, Math.hypot(ax - bx, ay - by))
+  }
+  assert.ok(closest > 5, `file centers are only ${closest} units apart`)
+})

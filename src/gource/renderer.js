@@ -376,7 +376,7 @@ export function createGource(canvasEl, repo, options = {}) {
         fcx /= wsum; fcy /= wsum
         const fpad = 170
         let zoomScale = Math.min((view.aw - fpad * 2) / Math.max(60, (fx1 - fx0) * near), (view.ah - fpad * 2) / Math.max(60, (fy1 - fy0) * fl.cphi * near))
-        zoomScale = Math.max(scale, Math.min(scale * 1.9, zoomScale))
+        zoomScale = Math.max(scale, Math.min(scale * 1.5, zoomScale))
         // Dollying in only helps when the tree is big and its dots are tiny;
         // small trees just get a gentle lean toward the action.
         const dolly = Math.max(0, Math.min(1, (count - 150) / 600))
@@ -385,7 +385,7 @@ export function createGource(canvasEl, repo, options = {}) {
         dirScale = Math.min(dirScale, (view.aw - pad * 2) / Math.max(1e-6, (x1 - x0) * 0.7 * near), (view.ah - pad * 2) / Math.max(1e-6, (y1 - y0) * 0.7 * fl.cphi * near))
         dirScale = Math.max(scale, dirScale)
         const halfW = (view.aw - pad * 2) / dirScale / 2 / near, halfH = (view.ah - pad * 2) / dirScale / 2 / fl.cphi / near
-        const lean = 0.2 + 0.25 * dolly
+        const lean = 0.12 + 0.18 * dolly
         let lx = lerp(rcx, fcx, lean), ly = lerp(rcy, fcy, lean)
         lx = (x1 - x0) > 2 * halfW ? Math.max(x0 + halfW, Math.min(x1 - halfW, lx)) : rcx
         ly = (y1 - y0) > 2 * halfH ? Math.max(y0 + halfH, Math.min(y1 - halfH, ly)) : rcy
@@ -411,14 +411,14 @@ export function createGource(canvasEl, repo, options = {}) {
   const hidePaths = () => privacy !== 'off'
   let lastLabelCount = 0
   let flyover = !reduceMotion && options.flyover !== false
-  const TURN_SECONDS = 150 // one full orbit per 150 s of playback at 1×
-  const TILT_BASE = 0.52, TILT_SWAY = 0.12
+  const TURN_SECONDS = 210 // one full orbit per 150 s of playback at 1×
+  const TILT_BASE = 0.34, TILT_SWAY = 0.06
   function flight() {
     if (!flyover) return { cs: 1, sn: 0, cphi: 1, sphi: 0, breathe: 1 }
     const wall = autoPace ? pacing.elapsed(now()) : (now() - from) / histPerSec
-    const th = (wall / TURN_SECONDS) * Math.PI * 2 + 0.08 * Math.sin(wall * 0.25)
+    const th = (wall / TURN_SECONDS) * Math.PI * 2 + 0.025 * Math.sin(wall * 0.12)
     const phi = TILT_BASE + TILT_SWAY * Math.sin(wall * 0.11)
-    return { cs: Math.cos(th), sn: Math.sin(th), cphi: Math.cos(phi), sphi: Math.sin(phi), breathe: 1 + 0.05 * Math.sin(wall * 0.17) }
+    return { cs: Math.cos(th), sn: Math.sin(th), cphi: Math.cos(phi), sphi: Math.sin(phi), breathe: 1 + 0.018 * Math.sin(wall * 0.13) }
   }
   let fl = flight()
   // Returns [x, y, k]: k is the perspective factor (near > 1 > far), used for depth cues.
@@ -675,6 +675,7 @@ export function createGource(canvasEl, repo, options = {}) {
     const ez = effectiveZoom()
     const isMobile = width < 640
     const labels = []
+    const actorPositions = [], actorLabels = []
     let hovered = null
 
     // hover: the chain from the hovered node up to root, plus its direct children
@@ -716,10 +717,10 @@ export function createGource(canvasEl, repo, options = {}) {
       }
       const depthFade = Math.max(0.55, 1 - n.depth * 0.08)
       const alpha = v.a * (hot ? 0.95 : Math.min(0.9, 0.42 * depthFade + heat * 0.5))
-      const w = ((hot ? 3 : 2.4 - Math.min(1, n.depth * 0.15)) + heat * 0.8) * depth
+      const w = ((hot ? 2.8 : 2.1 - Math.min(1, n.depth * 0.18)) + heat * 0.6) * depth
       // nearly straight, with a small hashed bend so branches read as grown, not plotted
       const mx = (px + nx) / 2, my = (py + ny) / 2, dx = nx - px, dy = ny - py
-      const bend = ((hashStr(n.path) % 200) / 100 - 1) * 0.07
+      const bend = ((hashStr(n.path) % 200) / 100 - 1) * 0.22
       const cx = mx - dy * bend, cy = my + dx * bend
       ctx.strokeStyle = `rgba(0,0,0,${(0.35 * alpha).toFixed(3)})`
       ctx.lineWidth = w + 2
@@ -731,6 +732,25 @@ export function createGource(canvasEl, repo, options = {}) {
       ctx.strokeStyle = g
       ctx.lineWidth = w
       ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(cx, cy, nx, ny); ctx.stroke()
+      // Activity travels from parent to child along the actual curved branch.
+      // History time makes these highlights repeatable in seeks and exports.
+      if (heat > 0.15 || hot) {
+        ctx.strokeStyle = rgba(hot ? C.accent : n.color, alpha * 0.07)
+        ctx.lineWidth = w + 7
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(cx, cy, nx, ny); ctx.stroke()
+        if (!reduceMotion && heat > 0.15 && Math.hypot(dx, dy) > 40) {
+          const phase = ((now() - from) / histPerSec * 0.65 + (hashStr(n.path) % 100) / 100) % 1
+          for (let j = 0; j < 3; j++) {
+            const t = (phase + j / 3) % 1, q = 1 - t
+            const x = q*q*px + 2*q*t*cx + t*t*nx, y = q*q*py + 2*q*t*cy + t*t*ny
+            const a = Math.sin(t * Math.PI) * heat * v.a
+            ctx.fillStyle = rgba(n.color, a * 0.12)
+            ctx.beginPath(); ctx.arc(x, y, 5 * depth, 0, Math.PI * 2); ctx.fill()
+            ctx.fillStyle = rgba([225, 244, 248], a * 0.75)
+            ctx.beginPath(); ctx.arc(x, y, 1.2 * depth, 0, Math.PI * 2); ctx.fill()
+          }
+        }
+      }
     }
 
     // root hub: a quiet marker where the top-level branches meet
@@ -754,7 +774,7 @@ export function createGource(canvasEl, repo, options = {}) {
       const isDir = n.type === 'dir'
       if (!isDir && collapsed.has(n.parent)) continue
       const [nx, ny, depth] = nodePos(n)
-      const baseSize = isDir ? 4 : Math.max(1.2, Math.min(3.5, Math.min(width, height) * ez / Math.sqrt(leafCount) / 12))
+      const baseSize = isDir ? 4 : Math.max(1.8, Math.min(4.2, Math.min(width, height) * ez / Math.sqrt(leafCount) / 12))
       // dying files shrink as they fade
       const size = baseSize * depth * (isDir ? 1 : 0.5 + 0.5 * v.a)
       if (size < 0.5) continue
@@ -762,7 +782,7 @@ export function createGource(canvasEl, repo, options = {}) {
       // Freshness: new files are bright; files nobody has touched for a long
       // stretch of playback sink into the background
       const idle = (curTs - latestChange(n)) / histPerSec
-      const floor = isDir ? 0.45 : lerp(0.45, 0.26, Math.max(0, Math.min(1, (idle - 12) / 30)))
+      const floor = isDir ? 0.45 : lerp(0.55, 0.36, Math.max(0, Math.min(1, (idle - 12) / 30)))
       const heat = fresh.get(n) || 0
       const freshness = Math.max(floor, heat)
       const alpha = v.a * freshness
@@ -771,11 +791,11 @@ export function createGource(canvasEl, repo, options = {}) {
       // folder bloom: a soft disc over the file ring so clusters read as one body
       if (isDir) {
         // capped in px so zooming in never turns a small folder into grey fog
-        const r = Math.min(80, (graph.radii.get(n) || 0) * cam.scale * zoom * depth)
+        const r = Math.min(110, (graph.radii.get(n) || 0) * cam.scale * zoom * depth)
         if (r > 8) {
           const bloom = ctx.createRadialGradient(nx, ny, 0, nx, ny, r)
           const strength = Math.max(0.45, Math.min(1, 36 / r))
-          bloom.addColorStop(0, rgba(n.color, (0.16 + freshness * 0.14 + (hot ? 0.18 : 0)) * v.a * strength))
+          bloom.addColorStop(0, rgba(n.color, (0.10 + freshness * 0.16 + (hot ? 0.14 : 0)) * v.a * strength))
           bloom.addColorStop(1, rgba(n.color, 0))
           ctx.globalAlpha = 1
           ctx.fillStyle = bloom
@@ -842,6 +862,10 @@ export function createGource(canvasEl, repo, options = {}) {
       ctx.globalAlpha = alpha
       ctx.fillStyle = rgba(n.color, 1)
       ctx.beginPath(); ctx.arc(nx, ny, size, 0, Math.PI * 2); ctx.fill()
+      if (!isDir && heat > 0.4) {
+        ctx.fillStyle = rgba([255, 250, 235], (heat - 0.4) * 0.75)
+        ctx.beginPath(); ctx.arc(nx - size * 0.15, ny - size * 0.15, size * 0.45, 0, Math.PI * 2); ctx.fill()
+      }
 
       // label: collected now, drawn afterwards in priority order so the
       // important names win when space is tight
@@ -859,7 +883,7 @@ export function createGource(canvasEl, repo, options = {}) {
       ctx.globalAlpha = 1
     }
     if (hidePaths()) for (const n of collapsed) { const v = vstate(n); if (v.a > 0.04) labelCandidates.push({ n, ...(() => { const [nx, ny] = nodePos(n); return { nx, ny } })(), isDir: true, alpha: v.a * 0.8, priority: n.weight, sub: `${aliveFiles(n)} files`, countOnly: true }) }
-    lastLabelCount = labelCandidates.filter(L => !L.countOnly).length
+    lastLabelCount = 0
     labelCandidates.sort((a, b) => b.priority - a.priority)
     ctx.textAlign = 'center'
     for (const L of labelCandidates) {
@@ -872,13 +896,26 @@ export function createGource(canvasEl, repo, options = {}) {
         t += '…'
       }
       const w = ctx.measureText(t).width
-      const box = { x: L.nx - w / 2 - 4, y: L.ny + 6, w: w + 8, h: L.sub ? 28 : 15 }
-      if (labels.some(b => box.x < b.x + b.w && box.x + box.w > b.x && box.y < b.y + b.h && box.y + box.h > b.y)) continue
+      const h = L.sub ? 32 : 20
+      const placements = [
+        { x: L.nx - w / 2 - 7, y: L.ny + 9, w: w + 14, h },
+        { x: L.nx - w / 2 - 7, y: L.ny - h - 9, w: w + 14, h },
+        { x: L.nx + 12, y: L.ny - h / 2, w: w + 14, h },
+      ]
+      const box = placements.find(box => box.x >= 6 && box.y >= 6 && box.x + box.w <= width - 6 && box.y + box.h <= height - 6 && !labels.some(b => box.x < b.x + b.w + 4 && box.x + box.w + 4 > b.x && box.y < b.y + b.h + 3 && box.y + box.h + 3 > b.y))
+      if (!box || labels.length >= (isMobile ? 22 : 55) && L.priority < 1e6) continue
       labels.push(box)
+      if (!L.countOnly) lastLabelCount++
       ctx.globalAlpha = 1
-      ctx.fillStyle = rgba(L.isDir ? [200, 215, 235] : L.n.color, L.alpha)
-      if (!L.countOnly) ctx.fillText(t, L.nx, L.ny + 16)
-      if (L.sub) { ctx.font = '500 9px "JetBrains Mono", monospace'; ctx.fillStyle = rgba(L.n.color, L.alpha); ctx.fillText(L.sub, L.nx, L.ny + 28) }
+      if (L.isDir) {
+        ctx.fillStyle = rgba(C.bubbleBg, L.alpha * 0.8)
+        roundRect(box.x, box.y, box.w, box.h, 5); ctx.fill()
+      }
+      ctx.fillStyle = rgba(L.isDir ? [215, 228, 241] : L.n.color, L.alpha)
+      const tx = box.x + box.w / 2, ty = box.y + 14
+      if (!L.countOnly) ctx.fillText(t, tx, ty)
+      if (L.sub) { ctx.font = '500 9px "JetBrains Mono", monospace'; ctx.fillStyle = rgba(L.n.color, L.alpha); ctx.fillText(L.sub, tx, ty + (L.countOnly ? 0 : 12)) }
+
     }
 
     // ---- author actors ----
@@ -900,7 +937,18 @@ export function createGource(canvasEl, repo, options = {}) {
         const alpha = st.alpha * (st.fromPos ? 1 : easeOutCubic(Math.min(1, st.travel * 1.5)))
         if (alpha < 0.03) continue
         const r = 12 * ui * Math.min(1.3, k)
-        const ax = ox + Math.cos(a.phase) * 46 * ui, ay = oy + Math.sin(a.phase) * 46 * ui - 8 * ui
+        let ax = ox + Math.cos(a.phase) * 46 * ui, ay = oy + Math.sin(a.phase) * 46 * ui - 8 * ui
+        // Nearby contributors get separate orbits instead of covering each other.
+        for (let j = 0; j < 24; j++) {
+          const ring = Math.floor(j / 8), radius = (50 + ring * 38) * ui
+          const angle = a.phase + j * Math.PI / 4 + ring * 0.3
+          const x = ox + Math.cos(angle) * radius, y = oy + Math.sin(angle) * radius - 8 * ui
+          if (x < r + 8 || y < r + 8 || x > width - r - 8 || y > height - r - 8) continue
+          if (actorPositions.some(p => Math.hypot(p[0] - x, p[1] - y) < r * 3)) continue
+          if (actorLabels.some(b => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h)) continue
+          ax = x; ay = y; break
+        }
+        actorPositions.push([ax, ay])
         const geom = commitGeometry(st.visit.index)
         const p = 1 - st.acting
         if (st.acting > 0 && st.travel >= 1 && geom.targets.length) {
@@ -950,22 +998,36 @@ export function createGource(canvasEl, repo, options = {}) {
         ctx.beginPath(); ctx.arc(ax, ay, r, 0, Math.PI * 2); ctx.stroke()
         // name pill, flipped to the left near the right edge
         ctx.font = `600 ${12 * ui}px "Space Grotesk", sans-serif`
-        const shown = displayName(a.name)
+        let shown = displayName(a.name)
+        const maxName = (isMobile ? 110 : 180) * ui
+        if (ctx.measureText(shown).width > maxName) {
+          while (shown.length > 1 && ctx.measureText(shown + '…').width > maxName) shown = shown.slice(0, -1)
+          shown += '…'
+        }
         const nameW = ctx.measureText(shown).width
         const extra = st.acting > 0 && c.files.length >= 5 ? `+${c.files.length}` : ''
         ctx.font = `500 ${10 * ui}px "JetBrains Mono", monospace`
         const extraW = extra ? ctx.measureText(extra).width + 8 * ui : 0
         const pw = nameW + extraW + 18 * ui, ph = 22 * ui
-        const px = ax + r + 6 * ui + pw > width - 8 ? ax - r - 6 * ui - pw : ax + r + 6 * ui
+        const choices = [
+          { x: ax + r + 6 * ui, y: ay - ph / 2, w: pw, h: ph },
+          { x: ax - r - 6 * ui - pw, y: ay - ph / 2, w: pw, h: ph },
+          { x: ax - pw / 2, y: ay + r + 7 * ui, w: pw, h: ph },
+          { x: ax - pw / 2, y: ay - r - 7 * ui - ph, w: pw, h: ph },
+        ]
+        const pill = choices.find(b => b.x >= 6 && b.y >= 6 && b.x + b.w <= width - 6 && b.y + b.h <= height - 6 && ![...labels, ...actorLabels].some(o => b.x < o.x + o.w + 3 && b.x + b.w + 3 > o.x && b.y < o.y + o.h + 3 && b.y + b.h + 3 > o.y) && !actorPositions.slice(0, -1).some(([x, y]) => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h))
+        if (!pill) { ctx.globalAlpha = 1; continue }
+        actorLabels.push(pill)
+        const px = pill.x, py = pill.y + ph / 2
         ctx.fillStyle = rgba(C.bubbleBg, 0.86)
-        roundRect(px, ay - ph / 2, pw, ph, ph / 2); ctx.fill()
+        roundRect(px, py - ph / 2, pw, ph, ph / 2); ctx.fill()
         ctx.strokeStyle = rgba(a.col, 0.5); ctx.lineWidth = 1
-        roundRect(px, ay - ph / 2, pw, ph, ph / 2); ctx.stroke()
+        roundRect(px, py - ph / 2, pw, ph, ph / 2); ctx.stroke()
         ctx.textAlign = 'left'
         ctx.fillStyle = 'rgba(235,240,248,0.96)'
         ctx.font = `600 ${12 * ui}px "Space Grotesk", sans-serif`
-        ctx.fillText(shown, px + 9 * ui, ay + 1)
-        if (extra) { ctx.fillStyle = rgba(a.col, 1); ctx.font = `500 ${10 * ui}px "JetBrains Mono", monospace`; ctx.fillText(extra, px + 9 * ui + nameW + 8 * ui, ay + 1) }
+        ctx.fillText(shown, px + 9 * ui, py + 1)
+        if (extra) { ctx.fillStyle = rgba(a.col, 1); ctx.font = `500 ${10 * ui}px "JetBrains Mono", monospace`; ctx.fillText(extra, px + 9 * ui + nameW + 8 * ui, py + 1) }
         ctx.globalAlpha = 1
       }
       ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center'
