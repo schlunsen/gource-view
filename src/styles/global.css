@@ -308,3 +308,7 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .repo-description { margin-top: 12px; padding-top: 10px; border-top: 1px solid #7389a222; color: #a4b6cb; font: 12px/1.6 var(--font-display); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
 @media (max-width: 640px) { .repo-description { margin-top: 8px; padding-top: 7px; font-size: 10px; -webkit-line-clamp: 5; } }
+
+.github-source-link { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid #35515c; border-radius: 7px; color: #8de4df; font: 500 11px var(--font-mono); text-decoration: none; white-space: nowrap; }
+.github-source-link:hover { color: #d6fffc; background: #19313b; border-color: #64dedb; }
+.github-source-link:focus-visible { outline: 2px solid #64dedb; outline-offset: 3px; }
