@@ -6,10 +6,11 @@ orbit their folders, contributors fly in and beam at what they touch, and a slow
 flyover camera drifts over it all. Exports broadcast-ready MP4s with a title
 card, a contributor leaderboard and music.
 
-**Live demo:** the GitHub Pages build (see the repository's *Environments*)
-plays a handful of pre-built repositories, including fullscreen video mode with
-music. Loading *any* repository, branch selection, trending and MP4 export need
-the self-hosted server below.
+**[Open the app](https://schlunsen.github.io/gource-view/)** — paste a public GitHub
+repository to clone and explore its history on your own device. Ready-to-play
+examples, branch selection, saved histories and fullscreen playback with music
+work on GitHub Pages. Trending, private/other Git hosts and rendered MP4 exports
+use the self-hosted server below.
 
 ![Nuxt repository history with a dense graph of packages, tests and active contributors](docs/demo.gif)
 
@@ -81,7 +82,7 @@ these labels. The viewer, fullscreen playback and MP4 exports share this rendere
 - **Explore repositories** opens a searchable collection of example projects, on
   desktop and mobile. Search by name, language or description.
 - Fresh visits load **300 commits**. Branch selections stay with their repository.
-  GitHub Pages uses prebuilt histories and only offers available options.
+  GitHub Pages supports public GitHub histories up to 3,000 commits, plus instant prebuilt examples.
 - Loading a new repository keeps your current visualization until the new one is
   ready. **Stop waiting** returns to it; failed loads offer **Try again** and
   **Back to viewer**. Connection retries are bounded instead of spinning forever.
@@ -123,16 +124,56 @@ upload your own track (MP3/M4A/WAV/OGG, ≤ 25 MB; make sure you hold the rights
 Subtle **sound effects** (a blip per commit, a whoosh per burst, a riser under the
 title) sit under the music and can be switched off.
 
-## Static demo (GitHub Pages)
+## Browser app (GitHub Pages)
 
-`VITE_STATIC=1 npx vite build --base=/<repo>/ && node scripts/build-static.mjs dist`
-bakes six repositories' last 300 commits and the music into `dist/`; the
-`Demo (GitHub Pages)` workflow does this on every push to `main` and weekly.
+```bash
+VITE_STATIC=1 npx vite build --base=/<repo>/
+DEMO_SELF=schlunsen/gource-view node scripts/build-static.mjs dist
+```
+
+The Pages workflow publishes on changes to `main` and refreshes the prebuilt
+examples weekly. The hosting repository opens by default. Visitors can also
+paste any **public GitHub** repository, choose a branch and load 300–3,000
+commits. **Load more history** expands the selected history; **Refresh history**
+downloads it again. Git runs in a Web Worker so downloading and computing file
+changes leave the UI responsive. **Cancel download** stops the worker and
+returns to the previous visualization.
+
+The browser clones one branch without checking out files, compares commit trees,
+and computes text diffs locally. Merge commits are excluded, as in the server
+viewer. At a shallow boundary, a commit with an unavailable parent is skipped
+rather than shown as adding every file. Commit limits include merges, so the
+number of displayed commits can be lower than the selected limit.
+
+Processed histories (up to five, no more than 20 MB each) are saved in IndexedDB
+for 24 hours. Repeat visits can reuse these histories without another clone;
+**Clear saved histories** removes them. Temporary Git clone storage is deleted
+on completion, cancellation or failure. Storage failures do not prevent playing
+an already processed history, but cloning itself requires IndexedDB support.
+
+GitHub's Git endpoints do not allow direct cross-origin browser requests. Downloads
+therefore pass through the public [isomorphic-git relay](https://github.com/isomorphic-git/cors-proxy),
+which sees the public repository URL and Git traffic. No tokens or credentials
+are accepted or forwarded. History processing and caching happen in the browser;
+the relay does not render the visualization. Relay downtime can affect fresh
+clones; prebuilt examples and cached histories remain available.
+
+To use a relay you operate, set `VITE_GIT_PROXY` to its HTTPS URL when building,
+or set the GitHub Actions repository variable of the same name. It must implement
+the isomorphic-git CORS proxy protocol. No application server is needed by Pages.
+
+Browser loads stop at 100 MB of downloaded Git data, 150,000 Git objects or eight
+minutes. Large repositories may exceed these limits even with a short history.
+Binary files keep their activity but contribute zero lines. Text changes over
+1 MB or exceeding the bounded diff budget retain file activity and are flagged
+as omitted from line totals in the stats panel. MP4 export still uses the
+self-hosted rendering service; fullscreen video playback and music work on Pages.
 
 ## Checks
 
 ```bash
 npm test             # unit tests (layout, actors, lifecycle, pacing, cards, sources, soundtrack, export options)
+npm run check:browser-git # builds Pages and exercises real Git protocol, caching and cancellation
 npm run test:video   # renders a real MP4 through FFmpeg and probes it
 npm run check        # browser checks (Playwright) against a fresh dev server; `npm run check -- edges` filters
 ```

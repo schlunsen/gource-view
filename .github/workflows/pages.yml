@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build the viewer in static mode
+        env:
+          VITE_GIT_PROXY: ${{ vars.VITE_GIT_PROXY }}
         run: VITE_STATIC=1 VITE_REPO_URL="https://github.com/${{ github.repository }}" npx vite build --base="/${{ github.event.repository.name }}/"
       - name: Bake demo repositories and music
         env:

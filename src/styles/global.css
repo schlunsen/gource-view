@@ -312,3 +312,12 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .github-source-link { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid #35515c; border-radius: 7px; color: #8de4df; font: 500 11px var(--font-mono); text-decoration: none; white-space: nowrap; }
 .github-source-link:hover { color: #d6fffc; background: #19313b; border-color: #64dedb; }
 .github-source-link:focus-visible { outline: 2px solid #64dedb; outline-offset: 3px; }
+
+.browser-history-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; padding: 7px 16px; border-bottom: 1px solid var(--color-line); background: var(--color-panel); color: var(--color-ink-400); font: 10px var(--font-mono); }
+.browser-history-bar > div { display: flex; gap: 14px; flex-wrap: wrap; }
+.browser-history-bar button, .browser-history-bar a { color: var(--color-accent); }
+.browser-history-bar button:disabled { opacity: .4; }
+.browser-history-bar button:hover, .browser-history-bar a:hover { text-decoration: underline; }
+@media (max-width: 640px) { .browser-history-bar { padding: 6px 12px; font-size: 9px; } .browser-relay-note { display: none; } }
+
+.repo-count-note { margin-top: 5px; color: var(--color-ink-400); font: 9px/1.4 var(--font-mono); }
