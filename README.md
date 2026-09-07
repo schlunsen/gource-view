@@ -8,9 +8,9 @@ card, a contributor leaderboard and music.
 
 **[Open the app](https://schlunsen.github.io/gource-view/)** — paste a public GitHub
 repository to clone and explore its history on your own device. Ready-to-play
-examples, GitHub trending, branch selection, saved histories and fullscreen
-playback with music work on GitHub Pages. Private/other Git hosts and rendered
-MP4 exports use the self-hosted server below.
+examples, GitHub trending, branch selection, saved histories, fullscreen
+playback with music and MP4 export all work on GitHub Pages — the video is
+rendered in your browser. Private/other Git hosts use the self-hosted server below.
 
 ![Nuxt repository history with a dense graph of packages, tests and active contributors](docs/demo.gif)
 
@@ -163,6 +163,16 @@ Repositories are loaded one of two ways, chosen automatically:
   api.github.com — never to the Git relay. Loads that run out of budget keep the
   commits already read and say so. GitHub lists at most 300 files per commit;
   larger commits keep their activity with the remainder omitted from line totals.
+
+**MP4 export in the browser.** The same composition the server renders (title
+card, history, contributor leaderboard, music and effects) is drawn frame by
+frame into an off-screen canvas, encoded with WebCodecs — hardware H.264 where
+the browser offers it, VP9 otherwise — and muxed to MP4 in memory, then offered
+as a download. Music and the synthesized effects are mixed with an
+`OfflineAudioContext` and encoded to AAC (Opus where AAC is unavailable).
+Needs a browser with WebCodecs (Chrome, Edge, Safari 17+); others see an
+explanation and the self-hosting note. A 720p 22-second video takes well under a
+minute on a laptop; 4K takes several minutes and a capable machine.
 
 The browser clones one branch without checking out files, compares commit trees,
 and computes text diffs locally. Merge commits are excluded, as in the server

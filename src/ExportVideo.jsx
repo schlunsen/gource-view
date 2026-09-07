@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { musicTracks, musicFileUrl } from './api.js'
 
 async function api(url, options) {
   const response = await fetch(url, options)
@@ -21,13 +22,20 @@ export default function ExportVideo({ repo, privacy: viewerPrivacy = 'off', cloc
   const [tracks, setTracks] = useState([])
   const [customTrack, setCustomTrack] = useState(null) // { name, data }
   const [copied, setCopied] = useState(false)
-  useEffect(() => { if (staticDemo) return; api('/api/music').then(d => setTracks(d.tracks || [])).catch(() => setTracks([])) }, [staticDemo])
+  // Browser build: the render runs in this tab (WebCodecs + in-memory MP4 muxing).
+  const [support, setSupport] = useState(null)
+  const controller = useRef(null)
+  useEffect(() => {
+    if (!staticDemo) { api('/api/music').then(d => setTracks(d.tracks || [])).catch(() => setTracks([])); return }
+    musicTracks().then(setTracks).catch(() => setTracks([]))
+    import('./browser-export/render.js').then(m => m.browserExportSupport()).then(setSupport).catch(e => setSupport({ ok: false, reason: e.message }))
+  }, [staticDemo])
   async function pickFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 25 * 1024 * 1024) { setError('Custom music must be 25 MB or smaller.'); e.target.value = ''; return }
     const data = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1]); r.onerror = reject; r.readAsDataURL(file) })
-    setCustomTrack({ name: file.name, data }); setMusic('custom'); setError('')
+    setCustomTrack({ name: file.name, data, file }); setMusic('custom'); setError('')
   }
   const [fps, setFps] = useState(30)
   const [duration, setDuration] = useState(30)
@@ -36,13 +44,14 @@ export default function ExportVideo({ repo, privacy: viewerPrivacy = 'off', cloc
 
   // Keep the job ID through a page refresh; the server owns the render lifecycle.
   useEffect(() => {
+    if (staticDemo) return // browser renders live in this tab only
     let cancelled = false
     const id = sessionStorage.getItem('gource-export')
     if (id) api(`/api/exports/${id}`).then(data => { if (!cancelled) setJob(data) }).catch(() => { sessionStorage.removeItem('gource-export') })
     return () => { cancelled = true }
-  }, [])
+  }, [staticDemo])
   useEffect(() => {
-    if (!active) return
+    if (!active || job?.local) return // local jobs report progress directly
     let cancelled = false, timer
     async function poll() {
       try {
@@ -55,10 +64,28 @@ export default function ExportVideo({ repo, privacy: viewerPrivacy = 'off', cloc
     }
     timer = setTimeout(poll, 1000)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [active, job?.id])
+  }, [active, job?.id, job?.local])
 
+  async function startInBrowser() {
+    const { browserExportOptions } = await import('./browser-export/options.js')
+    const { renderBrowserVideo } = await import('./browser-export/render.js')
+    const options = browserExportOptions({ resolution, orientation, sound, music, privacy, clock, fps: resolution === '4k' ? 30 : fps, duration, title, file: customTrack?.file }, tracks)
+    const id = `browser-${Date.now()}`
+    controller.current = new AbortController()
+    if (job?.download) URL.revokeObjectURL(job.download)
+    setJob({ id, status: 'rendering', stage: 'starting', pct: 0, repo: repo.repo, options, local: true })
+    setSubmitting(false)
+    try {
+      const out = await renderBrowserVideo({ repo, options, musicUrl: music !== 'none' && music !== 'custom' ? musicFileUrl(music) : '', musicFile: music === 'custom' ? customTrack.file : null, signal: controller.current.signal,
+        onProgress: p => setJob(prev => prev?.id === id ? { ...prev, ...p } : prev) })
+      setJob(prev => prev?.id === id ? { ...prev, status: 'done', pct: 100, download: URL.createObjectURL(out.blob), filename: out.filename, bytes: out.blob.size, codecs: `${out.video === 'avc' ? 'H.264' : 'VP9'}${out.audio === 'none' ? '' : out.audio === 'aac' ? ' · AAC' : ' · Opus'}` } : prev)
+    } catch (e) {
+      setJob(prev => prev?.id === id ? { ...prev, status: e.name === 'AbortError' ? 'cancelled' : 'error', error: e.name === 'AbortError' ? '' : e.message } : prev)
+    }
+  }
   async function start(e) {
     e.preventDefault(); setError(''); setSubmitting(true)
+    if (staticDemo) { try { await startInBrowser() } catch (e) { setError(e.message); setSubmitting(false) } return }
     try {
       const next = await api('/api/exports', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -69,10 +96,11 @@ export default function ExportVideo({ repo, privacy: viewerPrivacy = 'off', cloc
     finally { setSubmitting(false) }
   }
   async function cancel() {
+    if (job?.local) { controller.current?.abort(); setJob(prev => ({ ...prev, status: 'cancelling' })); return }
     try { setJob(await api(`/api/exports/${job.id}`, { method: 'DELETE' })); setError('') }
     catch (e) { setError(e.message) }
   }
-  function newVideo() { setJob(null); setError(''); sessionStorage.removeItem('gource-export') }
+  function newVideo() { if (job?.download && job.local) URL.revokeObjectURL(job.download); setJob(null); setError(''); sessionStorage.removeItem('gource-export') }
   const canExport = !!repo?.commits?.length
   return <>
     <button className="export-button" disabled={!canExport && !job} onClick={() => dialog.current.showModal()}>
@@ -82,23 +110,23 @@ export default function ExportVideo({ repo, privacy: viewerPrivacy = 'off', cloc
       <div className="export-top"><span className="eyebrow">CREATE A VIDEO</span><button aria-label="Close export dialog" onClick={() => dialog.current.close()}>×</button></div>
       <h2 id="export-heading">Your history. In motion.</h2>
       <p className="export-description">Download an MP4 ready for YouTube or your editor. The video covers the full loaded history with an automatic camera and no playback controls.</p>
-      {staticDemo ? <div className="export-result">
-        <p className="export-status">Video export runs on the Gource View server, which this demo does not include.</p>
+      {staticDemo && support && !support.ok ? <div className="export-result">
+        <p className="export-status" role="status">{support.reason}</p>
         <p className="export-note">Self-host it (one Docker image: git + Chromium + FFmpeg) to render 720p/1080p/4K MP4s of any repository with music and a title card. <a className="export-link" href={repoUrl} target="_blank" rel="noreferrer">Get it on GitHub →</a></p>
         <p className="export-note">Tip: ▶ Video plays the same composition fullscreen right here.</p>
-      </div> : job ? <div className="export-result">
+      </div> : staticDemo && !support ? <p className="export-note">Checking video support…</p> : job ? <div className="export-result">
         <div className="export-summary">{job.repo}<br /><span>{job.options.resolution}{job.options.orientation === 'portrait' ? ' portrait' : ''} · {job.options.fps} fps · {job.options.duration + (job.options.intro || 0) + (job.options.outro || 0)} seconds · {job.options.music !== 'none' ? `music: ${job.options.musicTitle}` : job.options.sound === 'none' ? 'silent' : 'effects only'} · MP4</span></div>
         {active && <>
           <div role="status" className="export-status">{job.status === 'cancelling' ? 'Cancelling…' : job.stage === 'starting' ? 'Preparing the renderer…' : job.stage === 'soundtrack' ? 'Composing the soundtrack…' : job.stage === 'encoding' ? 'Finishing your MP4…' : `Rendering frames · ${job.pct}%`}</div>
           <progress value={job.pct} max="100" aria-label="Video export progress" />
-          <p className="export-note">You can close this dialog while the server renders. Large graphs and 60 fps exports take longer.</p>
+          <p className="export-note">{job.local ? 'Rendering in this tab — keep it open. Large graphs, 4K and 60 fps take longer.' : 'You can close this dialog while the server renders. Large graphs and 60 fps exports take longer.'}</p>
           <button className="export-secondary" disabled={job.status === 'cancelling'} onClick={cancel}>Cancel export</button>
         </>}
         {job.status === 'done' && <>
           <p className="export-status">Your video is ready.</p>
-          <a className="export-primary" href={job.download} download>Download MP4 ↓</a>
+          <a className="export-primary" href={job.download} download={job.filename || true}>Download MP4 ↓{job.bytes ? ` · ${(job.bytes / 1048576).toFixed(1)} MB` : ''}</a>
           {job.options.credit && <p className="export-note export-credit">{job.options.credit}<br /><button type="button" className="export-link" onClick={async () => { try { await navigator.clipboard.writeText(job.options.credit); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* clipboard blocked */ } }}>{copied ? 'Copied' : 'Copy credit for your description'}</button></p>}
-          <p className="export-note">Available for one hour.</p>
+          <p className="export-note">{job.local ? `Rendered in your browser (${job.codecs}). The download lasts until you leave the page.` : 'Available for one hour.'}</p>
           <button className="export-secondary" onClick={newVideo}>Create another video</button>
         </>}
         {['error', 'cancelled'].includes(job.status) && <>
@@ -122,7 +150,7 @@ export default function ExportVideo({ repo, privacy: viewerPrivacy = 'off', cloc
           <label className="export-field">History length<select value={duration} onChange={e => setDuration(+e.target.value)}><option value={15}>15 seconds</option><option value={30}>30 seconds</option><option value={60}>60 seconds</option></select></label>
         </div>
         <div className="export-summary">{repo?.repo}<span> · {repo?.stats.commits ?? 0} loaded commits</span></div>
-        <p className="export-note">H.264 MP4{sound === 'none' && music === 'none' ? ' · no audio' : ' · AAC audio'} · adds a 3 s title card and a 4 s contributor leaderboard around the history.{resolution === '4k' ? ' 4K renders at 30 fps and can take 10–30 minutes.' : ''}</p>
+        <p className="export-note">{staticDemo ? 'Rendered right here in your browser — ' : ''}H.264 MP4{sound === 'none' && music === 'none' ? ' · no audio' : ' · AAC audio'} · adds a 3 s title card and a 4 s contributor leaderboard around the history.{resolution === '4k' ? (staticDemo ? ' 4K renders at 30 fps, needs a capable machine and takes several minutes.' : ' 4K renders at 30 fps and can take 10–30 minutes.') : ''}</p>
         {music !== 'none' && music !== 'custom' && <p className="export-note">Bundled music is by Kevin MacLeod (incompetech.com), CC BY 4.0 — the credit is shown on the closing card and offered for your video description.</p>}
         {privacy !== 'off' && <p className="export-note">Privacy: {privacy === 'all' ? 'file/folder names are hidden and contributors appear as “Contributor N” without photos' : 'file and folder names are hidden'}; the repository path is replaced by your title{title ? '' : ' (or “Private repository”)'}. Folder structure, colours and activity still show.</p>}
         {music === 'custom' && <p className="export-note">Your track is looped to the video length with fades. Make sure you hold the rights to publish it. <button type="button" className="export-link" onClick={() => document.getElementById('export-music-file')?.click()}>Choose a different file</button></p>}
