@@ -16,4 +16,3 @@ export function browserLimit(value = 300) {
   if (!Number.isInteger(n) || n < 1 || n > MAX_BROWSER_COMMITS) throw new Error(`Choose between 1 and ${MAX_BROWSER_COMMITS.toLocaleString()} commits for browser loading.`)
   return n
 }
-

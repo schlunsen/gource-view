@@ -73,6 +73,11 @@ export default function App() {
   const openVideo = useCallback(() => { if (!repo) return; gourceRef.current?.pause(); setVideoMode(true) }, [repo])
   const closeVideo = useCallback(() => setVideoMode(false), [])
   const [toast, setToast] = useState(null)
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 2200)
+    return () => clearTimeout(timer)
+  }, [toast])
   const lastPlaying = useRef(false)
   const actions = useRef({})
 
@@ -268,7 +273,6 @@ export default function App() {
   const share = useCallback(async () => {
     const url = new URL(buildLink(gourceRef.current?.time), window.location.href).toString()
     try { await navigator.clipboard.writeText(url); setToast('Link copied') } catch { setToast(url) }
-    setTimeout(() => setToast(null), 2200)
   }, [buildLink])
   actions.current = { syncUrl, seekTo, jumpBurst, applySpeed, toggleFlyover, togglePace, share, cyclePrivacy, openVideo, toggleClock }
 
