@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createGource } from './gource/renderer.js'
-import { startLoad, pollStatus, cancelJob } from './api.js'
+import { startLoad, pollStatus, cancelJob, STATIC } from './api.js'
+import RepoSearch from './RepoSearch.jsx'
+import TrendingPanel from './TrendingPanel.jsx'
 
 const PLAYBACK_SECONDS = 60
 const SPEEDS = [0.5, 1, 2, 4]
@@ -87,21 +89,24 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
     ? panel.data.stats.from + window_.span * progress
     : window_.from + window_.span * progress, [window_, align])
 
-  // keep the canvas backing store matched to its panel
-  useEffect(() => {
+  // keep the canvas backing store matched to its panel. Left unsized, a canvas
+  // keeps its default 300×150 and CSS stretches it — the graph renders correct
+  // but hugely magnified.
+  const sizeCanvas = useCallback(canvas => {
+    const box = canvas?.parentElement
+    if (!box) return
     const dpr = Math.min(2, window.devicePixelRatio || 1)
-    const size = el => {
-      const canvas = el.querySelector('canvas')
-      if (!canvas) return
-      const w = Math.max(1, Math.round(el.clientWidth * dpr)), h = Math.max(1, Math.round(el.clientHeight * dpr))
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
-    }
+    const w = Math.max(1, Math.round(box.clientWidth * dpr)), h = Math.max(1, Math.round(box.clientHeight * dpr))
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
+  }, [])
+  const readyKey = ready.map(p => p.name).join('|')
+  useEffect(() => {
     const boxes = [...document.querySelectorAll('.compare-canvas')]
-    boxes.forEach(size)
-    const ro = new ResizeObserver(entries => entries.forEach(e => size(e.target)))
+    for (const el of boxes) sizeCanvas(el.querySelector('canvas'))
+    const ro = new ResizeObserver(entries => entries.forEach(e => sizeCanvas(e.target.querySelector('canvas'))))
     boxes.forEach(el => ro.observe(el))
     return () => ro.disconnect()
-  }, [panels.length])
+  }, [readyKey, sizeCanvas])
 
   // engines follow the panels
   useEffect(() => {
@@ -109,10 +114,11 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
       if (engines.current.has(panel.name)) continue
       const canvas = canvases.current.get(panel.name)
       if (!canvas) continue
+      sizeCanvas(canvas) // the renderer reads these dimensions as it starts
       try { engines.current.set(panel.name, createGource(canvas, panel.data, { manual: true, privacy, clock: false })) } catch { /* skipped below */ }
     }
     for (const [name, engine] of engines.current) if (!ready.some(p => p.name === name)) { engine.destroy(); engines.current.delete(name) }
-  }, [ready, privacy])
+  }, [ready, privacy, sizeCanvas])
   useEffect(() => () => { for (const engine of engines.current.values()) engine.destroy(); engines.current.clear() }, [])
 
   // one clock drives every panel. requestAnimationFrame reports the *start* of
@@ -154,10 +160,10 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
     <div className="compare-view" role="dialog" aria-label="Compare projects">
       <header className="compare-head">
         <span className="eyebrow">COMPARING {ready.length} {ready.length === 1 ? 'PROJECT' : 'PROJECTS'}</span>
-        <form className="compare-add" onSubmit={e => { e.preventDefault(); add(new FormData(e.currentTarget).get('repo')); e.currentTarget.reset() }}>
-          <input name="repo" aria-label="Add a project to compare" placeholder="owner/repo to compare…" disabled={!!pending} />
-          <button type="submit" disabled={!!pending}>{pending ? 'Loading…' : 'Add'}</button>
-        </form>
+        <div className="compare-add">
+          <RepoSearch onPick={add} disabled={!!pending} label="Add a project to compare" placeholder={pending ? `Loading ${pending}…` : 'Search GitHub, or owner/repo…'} />
+          <TrendingPanel staticDemo={STATIC} onPick={add} />
+        </div>
         <div className="compare-align" role="group" aria-label="Time alignment">
           <button type="button" aria-pressed={align === 'dates'} className={align === 'dates' ? 'is-active' : ''} onClick={() => setAlign('dates')} title="Put both projects on the same calendar">Same dates</button>
           <button type="button" aria-pressed={align === 'age'} className={align === 'age' ? 'is-active' : ''} onClick={() => setAlign('age')} title="Start each project at its own first commit">By age</button>

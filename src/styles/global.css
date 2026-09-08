@@ -376,3 +376,22 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .compare-speeds button { border: 1px solid transparent; background: #101a26; color: #8193aa; font: 11px var(--font-mono); padding: 6px 9px; border-radius: 7px; cursor: pointer; }
 .compare-speeds .is-active { color: #64dedb; border-color: #64dedb66; background: #64dedb14; }
 @media (max-width: 860px) { .compare-grid { grid-template-columns: minmax(0, 1fr); } .compare-add input { min-width: 140px; } .compare-head { gap: 8px; } }
+
+/* Search GitHub for a project, straight from the browser */
+.repo-search { position: relative; display: flex; gap: 6px; }
+.repo-search input { background: #0b1119; border: 1px solid #7389a244; border-radius: 8px; color: #e7edf6; font: 12px var(--font-mono); padding: 7px 10px; min-width: 240px; }
+.repo-search input:focus { outline: none; border-color: #64dedb; }
+.repo-search button { border: 1px solid #7389a244; background: #0b1119; color: #a4b6cb; font: 11px var(--font-mono); padding: 7px 10px; border-radius: 8px; cursor: pointer; }
+.repo-search button:hover:not(:disabled) { color: #e7edf6; border-color: #7389a288; }
+.repo-search button:disabled { opacity: .45; cursor: not-allowed; }
+.repo-search-results { position: absolute; top: 40px; left: 0; z-index: 40; width: min(460px, 78vw); background: #111b28fa; border: 1px solid #7389a244; border-radius: 12px; box-shadow: 0 18px 48px #000a; padding: 6px; }
+.repo-search-results ul { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.repo-search-results li { display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; border-radius: 8px; cursor: pointer; }
+.repo-search-results li.is-active { background: #64dedb1f; }
+.repo-search-name { font: 500 12px var(--font-mono); color: #e7edf6; display: flex; align-items: center; gap: 8px; }
+.repo-search-lang { font-size: 9px; color: #64dedb; border: 1px solid #64dedb44; border-radius: 999px; padding: 1px 6px; }
+.repo-search-meta { display: flex; justify-content: space-between; gap: 10px; font: 10px var(--font-mono); color: #8193aa; }
+.repo-search-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-search-note { margin: 0; padding: 8px 10px; font: 11px var(--font-mono); color: #f0b25e; }
+.compare-add { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+@media (max-width: 860px) { .repo-search input { min-width: 150px; } }
