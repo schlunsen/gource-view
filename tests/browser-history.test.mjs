@@ -65,3 +65,28 @@ test('history summaries safely count author and directory names that match objec
   assert.deepEqual(summary.stats.topAuthors, [['__proto__', 1]])
   assert.deepEqual(summary.stats.topPaths, [['constructor', 3]])
 })
+
+test('an old patch merged today is placed when it landed, not when it was written', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gource-landing-')), dir = path.join(root, 'repo')
+  fs.mkdirSync(dir)
+  const run = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  const commit = (message, authored, committed) => {
+    run('add', '-A')
+    execFileSync('git', ['commit', '-qm', message], { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: authored, GIT_COMMITTER_DATE: committed } })
+  }
+  const iso = t => new Date(t * 1000).toISOString()
+  const LANDED = 1700000000, WRITTEN_LONG_BEFORE = LANDED - 30 * 86400
+  try {
+    run('init', '-q', '-b', 'main'); run('config', 'user.name', 'Test Author'); run('config', 'user.email', 'author@example.test')
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n')
+    commit('landed first', iso(LANDED), iso(LANDED))
+    // Written a month earlier (an old PR), but merged a day after the commit above.
+    fs.writeFileSync(path.join(dir, 'b.txt'), 'two\n')
+    commit('old patch, merged late', iso(WRITTEN_LONG_BEFORE), iso(LANDED + 86400))
+    const { commits } = await collectBrowserCommits({ fs, dir, maxCommits: 10 })
+    assert.deepEqual(commits.map(c => c.files[0].p), ['a.txt', 'b.txt'], 'stays in the order the changes landed')
+    assert.equal(commits[1].ts, LANDED + 86400, 'placed at its landing time, not a month earlier')
+    assert.equal(commits[1].ts - commits[0].ts, 86400, 'no phantom month of empty timeline')
+    assert.equal(commits[1].name, 'Test Author', 'the author still gets the credit')
+  } finally { fs.rmSync(root, { recursive: true, force: true }) }
+})
