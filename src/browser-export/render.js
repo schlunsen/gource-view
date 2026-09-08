@@ -24,7 +24,7 @@ export async function browserExportSupport() {
   } catch (e) { return { ok: false, reason: `Video encoding is unavailable here: ${e.message}` } }
 }
 
-async function pickVideoCodec(width, height, fps) {
+export async function pickVideoCodec(width, height, fps) {
   const candidates = [
     { container: 'avc', codec: `avc1.6400${avcLevel(width, height, fps)}`, extra: { avc: { format: 'avc' } } },
     { container: 'avc', codec: `avc1.4d00${avcLevel(width, height, fps)}`, extra: { avc: { format: 'avc' } } },
@@ -37,7 +37,7 @@ async function pickVideoCodec(width, height, fps) {
   return null
 }
 
-async function pickAudioCodec() {
+export async function pickAudioCodec() {
   if (typeof AudioEncoder === 'undefined') return null
   for (const c of [{ container: 'aac', codec: 'mp4a.40.2' }, { container: 'opus', codec: 'opus' }]) {
     try { if ((await AudioEncoder.isConfigSupported({ codec: c.codec, sampleRate: SAMPLE_RATE, numberOfChannels: 2, bitrate: 160000 })).supported) return c } catch { /* next */ }
@@ -51,7 +51,7 @@ async function decodeMusic(ctx, { musicUrl, musicFile }) {
 }
 
 /** Effects (quiet, ducked under music) + looped, trimmed, faded music → limiter, rendered offline. */
-async function renderAudio({ events, options, musicUrl, musicFile, signal }) {
+export async function renderAudio({ events, options, musicUrl, musicFile, signal }) {
   const total = options.duration + options.intro + options.outro
   const effects = options.sound !== 'none', music = options.music !== 'none'
   if (!effects && !music) return null
@@ -93,7 +93,6 @@ export async function renderBrowserVideo({ repo, options, musicUrl = '', musicFi
   const ctx = canvas.getContext('2d')
   const W = options.logicalWidth, H = options.logicalHeight
   const renderer = createGource(canvas, repo, { manual: true, duration: options.duration, pixelRatio: options.pixelRatio, privacy: options.privacy, clock: options.clock !== false })
-  let encoder, audioEncoder
   try {
     const composition = createComposition({ ctx, data: repo, config: options, renderer, W, H })
     const faces = ['400', '500', '600', '700', '800'].map(w => `${w} 32px ${FONT_SANS}`).concat(['400', '500', '600'].map(w => `${w} 16px ${FONT_MONO}`))
@@ -103,16 +102,39 @@ export async function renderBrowserVideo({ repo, options, musicUrl = '', musicFi
     onProgress({ stage: 'soundtrack', pct: 0 })
     const rendered = await renderAudio({ events: composition.soundEvents(), options, musicUrl, musicFile, signal })
     check()
-    const audio = rendered ? await pickAudioCodec() : null
-    const muxer = new Muxer({
-      target: new ArrayBufferTarget(),
-      video: { codec: video.container, width: options.width, height: options.height, frameRate: options.fps },
-      audio: audio ? { codec: audio.container, sampleRate: SAMPLE_RATE, numberOfChannels: 2 } : undefined,
-      fastStart: 'in-memory', firstTimestampBehavior: 'offset',
+    const out = await encodeToMp4({
+      canvas, width: options.width, height: options.height, fps: options.fps, resolution: options.resolution,
+      totalFrames: frames, rendered, video, signal,
+      drawFrame: i => composition.drawFrame(i / options.fps, canvas),
+      onProgress: p => onProgress(p),
     })
-    let failure = null
+    const filename = `${repo.repo.replace(/[^\w.-]+/g, '-')}-history-${options.resolution}${options.orientation === 'portrait' ? '-portrait' : ''}.mp4`
+    return { ...out, filename }
+  } finally {
+    renderer.destroy()
+  }
+}
+
+/**
+ * Encodes `totalFrames` frames of a canvas to an MP4 in memory. `drawFrame(i)`
+ * paints frame i; everything else — codec choice, muxing, back-pressure and
+ * keeping the tab responsive — is shared with the comparison export.
+ */
+export async function encodeToMp4({ canvas, width, height, fps, resolution = '1080p', totalFrames, drawFrame, rendered = null, video = null, onProgress = () => {}, signal }) {
+  const check = () => { if (signal?.aborted) throw aborted() }
+  const codec = video || await pickVideoCodec(width, height, fps)
+  if (!codec) throw new Error('This browser has no usable video encoder for that size. Try 720p or 1080p at 30 fps.')
+  const audio = rendered ? await pickAudioCodec() : null
+  const muxer = new Muxer({
+    target: new ArrayBufferTarget(),
+    video: { codec: codec.container, width, height, frameRate: fps },
+    audio: audio ? { codec: audio.container, sampleRate: SAMPLE_RATE, numberOfChannels: 2 } : undefined,
+    fastStart: 'in-memory', firstTimestampBehavior: 'offset',
+  })
+  let failure = null, encoder, audioEncoder
+  try {
     encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { failure = e } })
-    encoder.configure({ codec: video.codec, width: options.width, height: options.height, bitrate: BITRATE[options.resolution], framerate: options.fps, latencyMode: 'quality', ...video.extra })
+    encoder.configure({ codec: codec.codec, width, height, bitrate: BITRATE[resolution] || BITRATE['1080p'], framerate: fps, latencyMode: 'quality', ...codec.extra })
     if (audio) {
       audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => { failure = e } })
       audioEncoder.configure({ codec: audio.codec, sampleRate: SAMPLE_RATE, numberOfChannels: 2, bitrate: 160000 })
@@ -124,16 +146,16 @@ export async function renderBrowserVideo({ repo, options, musicUrl = '', musicFi
         audioEncoder.encode(frame); frame.close()
       }
     }
-    const frameMicros = 1e6 / options.fps
-    for (let i = 0; i < frames; i++) {
+    const frameMicros = 1e6 / fps
+    for (let i = 0; i < totalFrames; i++) {
       check()
       if (failure) throw failure
-      composition.drawFrame(i / options.fps, canvas)
+      drawFrame(i)
       const frame = new VideoFrame(canvas, { timestamp: Math.round(i * frameMicros), duration: Math.round(frameMicros), alpha: 'discard' })
-      encoder.encode(frame, { keyFrame: i % (options.fps * 2) === 0 })
+      encoder.encode(frame, { keyFrame: i % (fps * 2) === 0 })
       frame.close()
       while (encoder.encodeQueueSize > 6) { await new Promise(r => setTimeout(r, 4)); check() }
-      onProgress({ stage: 'rendering', pct: Math.min(99, Math.floor((i + 1) / frames * 99)), frame: i + 1, total: frames })
+      onProgress({ stage: 'rendering', pct: Math.min(99, Math.floor((i + 1) / totalFrames * 99)), frame: i + 1, total: totalFrames })
       if (i % 2 === 0) await yieldToUi()
     }
     onProgress({ stage: 'encoding', pct: 99 })
@@ -141,12 +163,9 @@ export async function renderBrowserVideo({ repo, options, musicUrl = '', musicFi
     if (failure) throw failure
     check()
     muxer.finalize()
-    const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' })
-    const filename = `${repo.repo.replace(/[^\w.-]+/g, '-')}-history-${options.resolution}${options.orientation === 'portrait' ? '-portrait' : ''}.mp4`
-    return { blob, filename, video: video.container, audio: audio?.container || 'none' }
+    return { blob: new Blob([muxer.target.buffer], { type: 'video/mp4' }), video: codec.container, audio: audio?.container || 'none' }
   } finally {
     try { encoder?.close() } catch { /* already closed */ }
     try { audioEncoder?.close() } catch { /* already closed */ }
-    renderer.destroy()
   }
 }

@@ -395,3 +395,18 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .repo-search-note { margin: 0; padding: 8px 10px; font: 11px var(--font-mono); color: #f0b25e; }
 .compare-add { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 @media (max-width: 860px) { .repo-search input { min-width: 150px; } }
+
+/* Comparison video export */
+.compare-export-open { border: 1px solid #438b91; background: #0b1119; color: #86e5e0; font: 11px var(--font-mono); padding: 7px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.compare-export-open:hover:not(:disabled) { background: #1c333f; }
+.compare-export-open:disabled { opacity: .45; cursor: not-allowed; }
+.compare-export { border-bottom: 1px solid #1d2c3d; padding: 10px 14px; background: #0a121c; }
+.compare-export-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.compare-export-row label { display: flex; flex-direction: column; gap: 5px; font: 10px var(--font-mono); color: #8193aa; }
+.compare-export-row select { background: #0b1119; border: 1px solid #7389a244; border-radius: 8px; color: #e7edf6; font: 11px var(--font-mono); padding: 7px 9px; }
+.compare-export-go { border: 1px solid #64dedb66; background: #64dedb14; color: #64dedb; font: 11px var(--font-mono); padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.compare-export-go:hover { background: #64dedb26; }
+.compare-export-progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; font: 10px var(--font-mono); color: #8193aa; }
+.compare-export-progress progress { width: 260px; accent-color: #64dedb; }
+.compare-export-done { margin: 10px 0 0; font: 11px var(--font-mono); color: #a4b6cb; }
+.compare-export-done a { color: #64dedb; }
