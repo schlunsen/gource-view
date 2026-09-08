@@ -8,6 +8,7 @@ import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTra
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
 import { clearHistories } from './browser-git/cache.js'
 import GithubToken from './GithubToken.jsx'
+import CompareView from './CompareView.jsx'
 import { createGource } from './gource/renderer.js'
 
 const DEFAULT_REPO = 'expressjs/express'
@@ -67,9 +68,12 @@ export default function App() {
   const privacyRef = useRef(normalizePrivacy(PARAMS.get('privacy')))
   const paceRef = useRef(PARAMS.get('pace') !== '0')
   const pendingSeek = useRef(PARAMS.get('t') ? +PARAMS.get('t') : null)
+  const autoCompare = useRef((PARAMS.get('vs') || '') !== '')
   const autoVideo = useRef(PARAMS.get('video') === '1') // a video link opens fullscreen playback once the history is in
   const [showHelp, setShowHelp] = useState(false)
   const [videoMode, setVideoMode] = useState(false)
+  const [compareOpen, setCompareOpen] = useState(false)
+  const compareInitial = useRef((PARAMS.get('vs') || '').split(',').map(s => s.trim()).filter(Boolean))
   const [tracks, setTracks] = useState([])
   useEffect(() => { musicTracks().then(setTracks).catch(() => {}) }, [])
   const openVideo = useCallback(() => { if (!repo) return; gourceRef.current?.pause(); setVideoMode(true) }, [repo])
@@ -152,6 +156,7 @@ export default function App() {
               g.pause(); setCurTs(g.time); setPlaying(false)
             } else g.play()
             if (autoVideo.current) { autoVideo.current = false; g.pause(); setPlaying(false); setVideoMode(true) }
+            if (autoCompare.current) { autoCompare.current = false; g.pause(); setPlaying(false); setCompareOpen(true) }
           } else if (s.status === 'error') {
             finished = true
             stop(); setLoading(false); setError(s.error)
@@ -392,6 +397,8 @@ export default function App() {
           </select>
         )}
 
+        <button type="button" className="export-button" disabled={!repo || loading} title="Compare this project with others on one clock" onClick={() => setCompareOpen(true)}>⇄ Compare</button>
+
         <ExportVideo repo={repo} privacy={privacy} clock={clock} staticDemo={STATIC} repoUrl={REPO_URL} />
 
         <TrendingPanel staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name, '') }} />
@@ -540,6 +547,7 @@ export default function App() {
         )}
       </main>
 
+      {compareOpen && repo && <CompareView primary={repo} initial={compareInitial.current} privacy={privacy} maxCommits={repo.loadLimit ?? maxCommits} onClose={() => setCompareOpen(false)} />}
       {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} />}
 
       {/* ── Transport ── */}
