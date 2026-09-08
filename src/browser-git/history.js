@@ -13,7 +13,7 @@ export function lineChanges(before = new Uint8Array(), after = new Uint8Array())
   return diff.reduce((n, part) => ({ a: n.a + (part.added ? part.count : 0), d: n.d + (part.removed ? part.count : 0) }), { a: 0, d: 0 })
 }
 
-export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits = 3000, onProgress = () => {} }) {
+export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits = 3000, blobs = true, onProgress = () => {} }) {
   const limit = browserLimit(maxCommits), cache = {}
   const options = { fs, dir, cache }
   const history = await git.log({ ...options, ref, depth: limit + 1 })
@@ -37,10 +37,13 @@ export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits 
       const oldBlob = before?.type === 'blob', newBlob = after?.type === 'blob'
       if (!oldBlob && !newBlob) continue
       if (++changes > 250000) throw new Error('This history changes too many files for browser playback. Try fewer commits.')
-      const a = oldBlob ? (await git.readBlob({ ...options, oid: before.oid })).blob : undefined
-      const b = newBlob ? (await git.readBlob({ ...options, oid: after.oid })).blob : undefined
-      const counts = lineChanges(a, b)
-      if (counts.countsOmitted) countsOmitted++
+      let counts = { a: 0, d: 0 }
+      if (blobs) {
+        const a = oldBlob ? (await git.readBlob({ ...options, oid: before.oid })).blob : undefined
+        const b = newBlob ? (await git.readBlob({ ...options, oid: after.oid })).blob : undefined
+        counts = lineChanges(a, b)
+        if (counts.countsOmitted) countsOmitted++
+      }
       files.push({ p, a: counts.a, d: counts.d, ...(!newBlob ? { s: 'D' } : {}) })
     }
     return files
@@ -58,5 +61,5 @@ export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits 
     if (files.length) commits.push({ hash, ts: commit.author.timestamp, name: commit.author.name, email: commit.author.email, subject: commit.message.split('\n')[0], files })
   }
   commits.sort((a, b) => a.ts - b.ts)
-  return { commits, countsOmitted, hasMore: shallow || history.length > limit }
+  return { commits, countsOmitted, linesUnavailable: !blobs, hasMore: shallow || history.length > limit }
 }

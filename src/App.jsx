@@ -400,7 +400,7 @@ export default function App() {
       <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />
 
       {STATIC && <div className="browser-history-bar">
-        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser?.source === 'api' ? `History from the GitHub API · ${repo.browser.reason}` : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a> or the <a href="https://docs.github.com/rest" target="_blank" rel="noreferrer">GitHub API</a></span>{repo?.browser?.rateLimited && <span className="browser-rate-note" role="status"> · GitHub's rate limit stopped this at {repo.stats.commits} commits{repo.browser.tokenUsed ? '' : ' — add a GitHub token for 5,000 requests an hour'}</span>}</span>
+        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser?.source === 'api' ? `History from the GitHub API · ${repo.browser.reason}` : repo?.browser?.source === 'blobless' ? `History from a partial clone · ${repo.browser.reason}` : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a> or the <a href="https://docs.github.com/rest" target="_blank" rel="noreferrer">GitHub API</a></span>{repo?.browser?.rateLimited && <span className="browser-rate-note" role="status"> · GitHub's rate limit stopped this at {repo.stats.commits} commits{repo.browser.tokenUsed ? '' : ' — add a GitHub token for 5,000 requests an hour'}</span>}</span>
         <div>
           <GithubToken />
           {repo && <button type="button" disabled={loading} onClick={() => load(repo.repo, refRef.current, { refresh: true })}>Refresh history</button>}
@@ -471,10 +471,11 @@ export default function App() {
               <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-[3px] font-mono text-[11px]">
                 <dt className="text-ink-500">commits</dt><dd className="text-right text-ink-100 tnum">{repo.stats.commits}</dd>
                 <dt className="text-ink-500">authors</dt><dd className="text-right text-ink-100 tnum">{repo.stats.authors}</dd>
-                <dt className="text-ink-500">lines</dt><dd className="text-right text-ink-100 tnum">{repo.stats.loc.toLocaleString()}</dd>
+                <dt className="text-ink-500">lines</dt><dd className="text-right text-ink-100 tnum">{repo.browser?.linesUnavailable ? '—' : repo.stats.loc.toLocaleString()}</dd>
                 <dt className="text-ink-500">span</dt><dd className="text-right text-ink-300 tnum">{fmtDate(repo.stats.from)} → {fmtDate(repo.stats.to)}</dd>
               </dl>
               {!!repo.browser?.countsOmitted && <p className="repo-count-note" title="Large or complex text diffs are omitted from line totals; their file activity is still shown.">{repo.browser.countsOmitted} large diffs excluded from lines.</p>}
+              {repo.browser?.linesUnavailable && <p className="repo-count-note" title="This repository was too large to download in full, so file contents were skipped. Every commit, file and contributor is exact; only line counts need the contents.">Line counts unavailable · file contents not downloaded.</p>}
               {privacy === 'off' && repo.description && <p className="repo-description" title={repo.description}>{repo.description}</p>}
             </div>
             {repo.stats.topAuthors.length > 0 && (
