@@ -118,6 +118,11 @@ this renderer.
   are flagged when large, and one click loads a repo. Refreshed once a day and
   cached on disk; on GitHub Pages the same data is baked into `data/trending.json`
   by the daily workflow, so no server is needed.
+- **Compare** (⇄ Compare): two to four projects side by side on one clock, one
+  seek bar and one speed. *Same dates* puts them on the same calendar, so you see
+  who was busier in a given window; *By age* starts each at its own first commit,
+  comparing like for like. Each panel keeps a running commit count. A link of the
+  form `?repo=a/b&vs=c/d` opens the comparison directly.
 - Press `?` for every keyboard shortcut.
 
 ## Export video

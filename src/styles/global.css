@@ -345,3 +345,34 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .github-token-note { margin: 0; font: 10px/1.5 var(--font-mono); color: #64748b; }
 .github-token-note b { color: #8193aa; font-weight: 500; }
 .browser-rate-note { color: #f0b25e; }
+
+/* Compare: several projects on one clock */
+.compare-view { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #070d16; color: #e7edf6; }
+.compare-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1d2c3d; flex-wrap: wrap; }
+.compare-head .eyebrow { white-space: nowrap; }
+.compare-add { display: flex; gap: 6px; margin-left: auto; }
+.compare-add input { background: #0b1119; border: 1px solid #7389a244; border-radius: 8px; color: #e7edf6; font: 12px var(--font-mono); padding: 7px 10px; min-width: 210px; }
+.compare-add input:focus { outline: none; border-color: #64dedb; }
+.compare-add button, .compare-align button, .compare-exit { border: 1px solid #7389a244; background: #0b1119; color: #a4b6cb; font: 11px var(--font-mono); padding: 7px 10px; border-radius: 8px; cursor: pointer; }
+.compare-add button:hover, .compare-align button:hover, .compare-exit:hover { color: #e7edf6; border-color: #7389a288; }
+.compare-align { display: flex; gap: 4px; }
+.compare-align .is-active { color: #64dedb; border-color: #64dedb66; background: #64dedb14; }
+.compare-error { margin: 0; padding: 8px 14px; font: 11px var(--font-mono); color: #f0b25e; }
+.compare-grid { flex: 1; display: grid; gap: 10px; padding: 10px; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.compare-grid[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+.compare-grid[data-count="3"], .compare-grid[data-count="4"] { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.compare-panel { display: flex; flex-direction: column; min-height: 0; border: 1px solid #1d2c3d; border-radius: 12px; overflow: hidden; background: #0a101b; }
+.compare-panel-head { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #16222f; }
+.compare-name { font: 500 12px var(--font-mono); color: #e7edf6; }
+.compare-stat { font: 10px var(--font-mono); color: #8193aa; margin-left: auto; text-align: right; }
+.compare-canvas { position: relative; flex: 1; min-height: 0; }
+.compare-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.compare-loading { display: grid; place-items: center; height: 100%; font: 11px var(--font-mono); color: #8193aa; }
+.compare-controls { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid #1d2c3d; }
+.compare-controls input[type=range] { flex: 1; accent-color: #64dedb; }
+.compare-play { width: 38px; height: 34px; border-radius: 8px; border: 1px solid #64dedb55; background: #64dedb14; color: #64dedb; cursor: pointer; }
+.compare-clock { font: 11px var(--font-mono); color: #a4b6cb; min-width: 130px; text-align: right; }
+.compare-speeds { display: flex; gap: 4px; }
+.compare-speeds button { border: 1px solid transparent; background: #101a26; color: #8193aa; font: 11px var(--font-mono); padding: 6px 9px; border-radius: 7px; cursor: pointer; }
+.compare-speeds .is-active { color: #64dedb; border-color: #64dedb66; background: #64dedb14; }
+@media (max-width: 860px) { .compare-grid { grid-template-columns: minmax(0, 1fr); } .compare-add input { min-width: 140px; } .compare-head { gap: 8px; } }
