@@ -24,10 +24,11 @@ export async function getConfig() {
 /** Start a server job, prebuilt example, or browser worker job. */
 export async function startLoad(repo, options) {
   if (!STATIC) return json('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repo, options }) })
-  const name = parseRepository(repo), maxCommits = browserLimit(options?.maxCommits ?? 300)
+  const name = parseRepository(repo), maxCommits = browserLimit(options?.maxCommits ?? 3000)
   const idx = await demoIndex().catch(() => ({ demos: [] }))
   const demo = idx.demos.find(d => d.name.toLowerCase() === name.toLowerCase())
-  if (demo && maxCommits === 300 && !options?.ref && !options?.refresh && !await cachedHistory(historyKey(name, '', maxCommits))) return { job: demo.slug, static: true }
+  // Prebuilt demos load instantly; use one when the requested depth is what it was baked at.
+  if (demo && maxCommits === (demo.limit ?? 300) && !options?.ref && !options?.refresh && !await cachedHistory(historyKey(name, '', maxCommits))) return { job: demo.slug, static: true }
   const { startBrowserLoad } = await import('./browser-git/client.js')
   return startBrowserLoad(name, { ...options, maxCommits })
 }

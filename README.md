@@ -143,7 +143,7 @@ DEMO_SELF=schlunsen/gource-view node scripts/build-static.mjs dist
 
 The Pages workflow publishes on changes to `main` and runs daily to refresh
 GitHub trending and the prebuilt examples. The hosting repository opens by default. Visitors can also
-paste any **public GitHub** repository, choose a branch and load 300–3,000
+paste any **public GitHub** repository, choose a branch and load up to 3,000
 commits. **Load more history** expands the selected history; **Refresh history**
 downloads it again. Git runs in a Web Worker so downloading and computing file
 changes leave the UI responsive. **Cancel download** stops the worker and

@@ -5,7 +5,7 @@
 import fs from 'node:fs'
 
 export const REFRESH_MS = 24 * 3600000
-const UA = 'gource-viewer (+https://github.com/Lunar-Rails/n0-app-skill)'
+const UA = 'gource-viewer (+https://github.com/schlunsen/gource-view)'
 
 export const PERIODS = [
   { id: 'daily', label: 'Today', short: 'today', since: 'daily', days: 1 },
