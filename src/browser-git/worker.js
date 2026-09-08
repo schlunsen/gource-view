@@ -6,6 +6,7 @@ import { collectBrowserCommits } from './history.js'
 import { parseRepository, browserLimit } from './options.js'
 import { summarize } from '../history-summary.js'
 import { fetchRepo, chooseMode, collectApiCommits, RateLimitError } from './github-api.js'
+import { cloneBlobless } from './blobless.js'
 
 globalThis.Buffer = Buffer
 
@@ -20,13 +21,27 @@ self.onmessage = async ({ data }) => {
     // Metadata is optional: a rate-limited or offline API must not block a clone, which needs no API at all.
     try { meta = await fetchRepo(repo, fetch, token) } catch (e) { if (/not found|rejected the token/.test(e.message)) throw e }
     if (meta?.private) throw new Error('Browser loading supports public GitHub repositories only.')
-    const mode = chooseMode(meta, data.mode)
-    if (mode === 'api') { self.postMessage({ status: 'done', result: await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: `${meta.sizeMb.toLocaleString()} MB repository` }) }); return }
-    try { self.postMessage({ status: 'done', result: await cloneHistory({ repo, limit, meta, data, report }) }) }
+    const done = result => self.postMessage({ status: 'done', result })
+    const tooBig = chooseMode(meta, 'auto') === 'api'
+    const size = meta ? `${meta.sizeMb.toLocaleString()} MB repository` : 'large repository'
+    if (data.mode === 'api') { done(await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: 'requested' })); return }
+    if (data.mode === 'blobless' || (tooBig && data.mode !== 'clone')) {
+      try { done(await bloblessHistory({ repo, limit, meta, data, report, reason: size })); return }
+      catch (e) {
+        if (data.mode === 'blobless') throw e
+        report({ pct: 4, detail: 'Partial clone unavailable · switching to the GitHub API…' })
+        done(await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: size })); return
+      }
+    }
+    try { done(await cloneHistory({ repo, limit, meta, data, report })) }
     catch (e) {
       if (data.mode === 'clone' || !CAP.test(e.message)) throw e
-      report({ pct: 5, detail: 'Too large to clone in the browser · switching to the GitHub API…' })
-      self.postMessage({ status: 'done', result: await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: 'too large to clone in the browser' }) })
+      report({ pct: 4, detail: 'Too large to clone in full · fetching history without file contents…' })
+      try { done(await bloblessHistory({ repo, limit, meta, data, report, reason: 'too large to clone in full' })) }
+      catch {
+        report({ pct: 4, detail: 'Switching to the GitHub API…' })
+        done(await apiHistory({ repo, limit, token, meta, ref: data.ref, report, reason: 'too large to clone in the browser' }))
+      }
     }
   } catch (e) {
     const error = e.name === 'QuotaExceededError' ? 'Browser storage is full. Clear saved histories or try fewer commits.' : e instanceof RateLimitError ? e.message : /fetch|network|timeout|Load failed/i.test(e.message) ? 'Could not download Git history. Check your connection and try again, or open a ready-to-play example.' : e.message
@@ -41,6 +56,23 @@ async function apiHistory({ repo, limit, token, meta, ref, report, reason }) {
   report({ pct: 95, detail: 'Preparing playback…' })
   return summarize(history.commits, { repo, source: 'github', sourceUrl: `https://github.com/${repo}`, description: meta?.description || '', ref: branch, refs: [...new Set([defaultRef, branch])], defaultRef, maxCommits: limit,
     browser: { cached: false, source: 'api', reason, hasMore: history.hasMore, rateLimited: history.rateLimited, countsOmitted: history.truncated, requestsUsed: history.requestsUsed, remaining: history.remaining, limit: history.limit, reset: history.reset, tokenUsed: !!token } })
+}
+
+// A partial clone: trees but no file contents, so every commit's file list is
+// exact while the download stays small. Line counts need blobs, so they are
+// reported as unavailable rather than guessed.
+async function bloblessHistory({ repo, limit, meta, data, report, reason }) {
+  const fs = new LightningFS(data.database), dir = '/repo'
+  await fs.promises.mkdir(dir).catch(() => {})
+  const { ref, defaultRef, branches } = await cloneBlobless({
+    fs, dir, url: `https://github.com/${repo}.git`, corsProxy: data.proxy, ref: data.ref,
+    depth: limit + 1, maxBytes: MAX_DOWNLOAD, onProgress: report,
+  })
+  const history = await collectBrowserCommits({ fs, dir, ref, maxCommits: limit, blobs: false, onProgress: report })
+  if (!history.commits.length) throw new Error('No file changes found in this history. Try a different branch or more commits.')
+  report({ pct: 96, detail: 'Preparing playback…' })
+  return summarize(history.commits, { repo, source: 'github', sourceUrl: `https://github.com/${repo}`, description: meta?.description || '', ref, refs: branches, defaultRef, maxCommits: limit,
+    browser: { cached: false, source: 'blobless', reason, hasMore: history.hasMore, linesUnavailable: true } })
 }
 
 async function cloneHistory({ repo, limit, meta, data, report }) {

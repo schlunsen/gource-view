@@ -153,8 +153,13 @@ Repositories are loaded one of two ways, chosen automatically:
 
 - **Clone** (the default): one branch is cloned without checking out files,
   commit trees are compared and text diffs computed locally, all on-device.
-- **GitHub API**: repositories over 250 MB — or any clone that hits the browser
-  limits below — switch to the GitHub REST API instead. Commit metadata and
+- **Partial (blobless) clone**: repositories over 250 MB — or any clone that hits
+  the browser limits below — fetch a `filter blob:none` pack instead. Trees still
+  arrive, so every commit's file list, author and timestamp is exact, while the
+  download collapses: 3,000 commits of a 3.7 GB repository are about 8 MB. File
+  contents are skipped, so line counts are reported as unavailable rather than
+  guessed. Needs no token and no API budget.
+- **GitHub API**: the last resort, if a partial clone is refused. Commit metadata and
   per-file line counts come straight from the API, so repository size stops
   mattering (a 3.7 GB repository loads in a couple of minutes). The API allows
   60 requests an hour without a token, enough for about 50 commits; an optional
@@ -163,6 +168,10 @@ Repositories are loaded one of two ways, chosen automatically:
   api.github.com — never to the Git relay. Loads that run out of budget keep the
   commits already read and say so. GitHub lists at most 300 files per commit;
   larger commits keep their activity with the remainder omitted from line totals.
+
+isomorphic-git cannot request a partial clone, so `src/browser-git/protocol.js`
+speaks just enough Git protocol v2 to fetch a filtered pack, which is then
+indexed and read back through isomorphic-git as an ordinary repository.
 
 **MP4 export in the browser.** The same composition the server renders (title
 card, history, contributor leaderboard, music and effects) is drawn frame by
