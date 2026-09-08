@@ -95,7 +95,7 @@ export async function collectApiCommits({ repo, ref = '', maxCommits = 300, toke
       const d = await r.json()
       if (d.files && d.files.length >= 300) truncated++ // GitHub lists at most 300 files per commit
       const files = mapFiles(d.files)
-      if (files.length) commits.push({ hash: d.sha, ts: Math.floor(new Date(d.commit.author.date).getTime() / 1000), name: d.commit.author.name, email: d.commit.author.email || '', subject: (d.commit.message || '').split('\n')[0], files })
+      if (files.length) commits.push({ hash: d.sha, ts: Math.floor(new Date(d.commit.committer?.date || d.commit.author.date).getTime() / 1000), name: d.commit.author.name, email: d.commit.author.email || '', subject: (d.commit.message || '').split('\n')[0], files })
       done++
       onProgress({ pct: 25 + done / targets.length * 68, detail: `Reading changes · ${done} / ${targets.length} commits` })
     }

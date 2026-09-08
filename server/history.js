@@ -21,7 +21,7 @@ export function run(cmd, args, { cwd, maxBuffer = 200 * 1024 * 1024, timeout = 1
 export async function collectCommits(repoDir, { maxCommits = 3000, ref = 'HEAD' } = {}) {
   // Use \u0001 as a commit-start marker so numstat lines (which follow the
   // \u0000 terminator) are cleanly associated with their commit.
-  const F = '%x01%H%x09%at%x09%an%x09%ae%x09%s'
+  const F = '%x01%H%x09%ct%x09%an%x09%ae%x09%s'
   const { stdout, stderr } = await run('git', [
     'log', ...(maxCommits > 0 ? [`--max-count=${maxCommits}`] : []), '--no-merges', ref,
     `--pretty=format:${F}`,

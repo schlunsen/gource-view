@@ -58,7 +58,7 @@ export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits 
       catch (e) { if (e.code !== 'NotFoundError') throw e; shallow = true; continue }
     }
     const files = await compare(parent, commit.tree)
-    if (files.length) commits.push({ hash, ts: commit.author.timestamp, name: commit.author.name, email: commit.author.email, subject: commit.message.split('\n')[0], files })
+    if (files.length) commits.push({ hash, ts: commit.committer?.timestamp ?? commit.author.timestamp, name: commit.author.name, email: commit.author.email, subject: commit.message.split('\n')[0], files })
   }
   commits.sort((a, b) => a.ts - b.ts)
   return { commits, countsOmitted, linesUnavailable: !blobs, hasMore: shallow || history.length > limit }
