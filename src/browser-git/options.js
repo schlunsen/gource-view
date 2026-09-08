@@ -1,4 +1,6 @@
 export const MAX_BROWSER_COMMITS = 3000
+// How much history a load asks for when nobody chose a depth.
+export const DEFAULT_COMMITS = 3000
 export function parseRepository(value) {
   let name = String(value || '').trim()
   if (/^(https?:\/\/|(?:www\.)?github\.com\/)/i.test(name)) {
@@ -11,7 +13,7 @@ export function parseRepository(value) {
   return name
 }
 
-export function browserLimit(value = 3000) {
+export function browserLimit(value = DEFAULT_COMMITS) {
   const n = Number(value)
   if (!Number.isInteger(n) || n < 1 || n > MAX_BROWSER_COMMITS) throw new Error(`Choose between 1 and ${MAX_BROWSER_COMMITS.toLocaleString()} commits for browser loading.`)
   return n

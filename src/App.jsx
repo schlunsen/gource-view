@@ -4,7 +4,7 @@ import GiteaPicker from './GiteaPicker.jsx'
 import TrendingPanel from './TrendingPanel.jsx'
 import RepoDiscovery from './RepoDiscovery.jsx'
 import VideoMode from './VideoMode.jsx'
-import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTracks, giteaRepos as fetchGiteaRepos } from './api.js'
+import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTracks, giteaRepos as fetchGiteaRepos, DEFAULT_COMMITS } from './api.js'
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
 import { clearHistories } from './browser-git/cache.js'
 import GithubToken from './GithubToken.jsx'
@@ -44,7 +44,7 @@ export default function App() {
   const lastLoad = useRef(null)
   const [loadSeconds, setLoadSeconds] = useState(0)
   const [error, setError] = useState(null)
-  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && (STATIC ? [300, 1000, 1500, 3000] : [0, 300, 1000, 1500, 3000]).includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 3000)
+  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && (STATIC ? [300, 1000, 1500, 3000] : [0, 300, 1000, 1500, 3000]).includes(+PARAMS.get('max')) ? +PARAMS.get('max') : DEFAULT_COMMITS)
   const refRef = useRef(PARAMS.get('ref') || '') // branch override; '' = the repository default
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(SPEEDS.includes(+PARAMS.get('speed')) ? +PARAMS.get('speed') : 1)
