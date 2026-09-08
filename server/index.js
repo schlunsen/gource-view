@@ -242,7 +242,7 @@ app.get('/api/gitea/repos', async (_req, res) => {
 
 app.post('/api/load', limited(loadLimiter, 'repository loads'), (req, res) => {
   const raw = String(req.body?.repo || '').trim()
-  const opts = { maxCommits: Number(req.body?.options?.maxCommits ?? 300), ref: req.body?.options?.ref ? String(req.body.options.ref) : '' }
+  const opts = { maxCommits: Number(req.body?.options?.maxCommits ?? 3000), ref: req.body?.options?.ref ? String(req.body.options.ref) : '' }
   if (![0, 300, 1000, 1500, 3000].includes(opts.maxCommits)) return res.status(400).json({ error: 'Choose a supported commit limit.' })
   if (opts.ref && !isValidRef(opts.ref)) return res.status(400).json({ error: 'That branch name is not valid.' })
   const parsed = parseRepo(raw)

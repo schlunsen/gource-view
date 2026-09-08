@@ -11,7 +11,7 @@ export function parseRepository(value) {
   return name
 }
 
-export function browserLimit(value = 300) {
+export function browserLimit(value = 3000) {
   const n = Number(value)
   if (!Number.isInteger(n) || n < 1 || n > MAX_BROWSER_COMMITS) throw new Error(`Choose between 1 and ${MAX_BROWSER_COMMITS.toLocaleString()} commits for browser loading.`)
   return n

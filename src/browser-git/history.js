@@ -13,7 +13,7 @@ export function lineChanges(before = new Uint8Array(), after = new Uint8Array())
   return diff.reduce((n, part) => ({ a: n.a + (part.added ? part.count : 0), d: n.d + (part.removed ? part.count : 0) }), { a: 0, d: 0 })
 }
 
-export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits = 300, onProgress = () => {} }) {
+export async function collectBrowserCommits({ fs, dir, ref = 'HEAD', maxCommits = 3000, onProgress = () => {} }) {
   const limit = browserLimit(maxCommits), cache = {}
   const options = { fs, dir, cache }
   const history = await git.log({ ...options, ref, depth: limit + 1 })

@@ -44,7 +44,7 @@ export default function App() {
   const lastLoad = useRef(null)
   const [loadSeconds, setLoadSeconds] = useState(0)
   const [error, setError] = useState(null)
-  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && (STATIC ? [300, 1000, 1500, 3000] : [0, 300, 1000, 1500, 3000]).includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 300)
+  const [maxCommits, setMaxCommits] = useState(PARAMS.has('max') && (STATIC ? [300, 1000, 1500, 3000] : [0, 300, 1000, 1500, 3000]).includes(+PARAMS.get('max')) ? +PARAMS.get('max') : 3000)
   const refRef = useRef(PARAMS.get('ref') || '') // branch override; '' = the repository default
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(SPEEDS.includes(+PARAMS.get('speed')) ? +PARAMS.get('speed') : 1)
