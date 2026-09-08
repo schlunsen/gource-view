@@ -90,3 +90,12 @@ test('an old patch merged today is placed when it landed, not when it was writte
     assert.equal(commits[1].name, 'Test Author', 'the author still gets the credit')
   } finally { fs.rmSync(root, { recursive: true, force: true }) }
 })
+
+test('a history saved by an older build is not reused after the schema changes', async () => {
+  const { historyKey, HISTORY_SCHEMA } = await import('../src/browser-git/cache.js')
+  const key = historyKey('owner/repo', '', 3000)
+  assert.equal(JSON.parse(key)[0], HISTORY_SCHEMA, 'the schema version is part of the key')
+  assert.notEqual(key, JSON.stringify(['owner/repo', '', 3000]), 'keys written before versioning cannot match')
+  assert.notEqual(key, JSON.stringify([HISTORY_SCHEMA - 1, 'owner/repo', '', 3000]), 'an older schema cannot match')
+  assert.equal(historyKey('OWNER/Repo', '', 3000), key, 'still case-insensitive on the repository')
+})
