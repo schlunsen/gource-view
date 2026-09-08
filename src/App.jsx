@@ -547,7 +547,7 @@ export default function App() {
         )}
       </main>
 
-      {compareOpen && repo && <CompareView primary={repo} initial={compareInitial.current} privacy={privacy} maxCommits={repo.loadLimit ?? maxCommits} onClose={() => setCompareOpen(false)} />}
+      {compareOpen && repo && <CompareView primary={repo} initial={compareInitial.current} privacy={privacy} maxCommits={repo.loadLimit ?? maxCommits} gitea={config?.gitea} giteaRepos={giteaRepos} onClose={() => setCompareOpen(false)} />}
       {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} />}
 
       {/* ── Transport ── */}

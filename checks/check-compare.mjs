@@ -100,6 +100,28 @@ await page.locator('.compare-panel').nth(3).locator('canvas').waitFor({ timeout:
 assert.equal(await page.locator('.compare-panel').count(), 4, 'search adds a fourth project')
 await page.screenshot({ path: `${S}/compare-four.png` })
 
+// the comparison itself exports to MP4, rendered in this browser
+await page.route('**/api/music', r => r.fulfill({ json: { tracks: [] } }))
+await view.getByRole('button', { name: 'Export video ↗' }).click()
+await view.getByLabel('Length').selectOption('15')
+await view.getByLabel('Resolution').selectOption('720p')
+const dialogText = await page.locator('.compare-export').innerText()
+if (/no usable video encoder|cannot encode/i.test(dialogText)) {
+  console.log('  (this browser has no WebCodecs encoder — export skipped)')
+} else {
+  await view.getByRole('button', { name: /^Render \d+ projects/ }).click()
+  await page.locator('.compare-export-done a').waitFor({ timeout: 300000 })
+  const href = await page.locator('.compare-export-done a').getAttribute('href')
+  assert.ok(href.startsWith('blob:'), 'the MP4 is produced in the browser')
+  const name = await page.locator('.compare-export-done a').getAttribute('download')
+  assert.match(name, /-vs-.*\.mp4$/, `filename names both projects: ${name}`)
+  const bytes = await page.evaluate(async href => (await (await fetch(href)).blob()).size, href)
+  assert.ok(bytes > 100000, `a real video came out (${bytes} bytes)`)
+  assert.match(await page.locator('.compare-export-done').innerText(), /rendered in your browser/)
+  console.log(`  comparison video: ${(bytes / 1048576).toFixed(1)} MB`)
+}
+await page.locator('.compare-export').getByRole('button', { name: 'Close' }).click()
+
 await page.getByRole('button', { name: 'Exit ×' }).click()
 assert.equal(await page.locator('.compare-view').count(), 0, 'exits back to the viewer')
 assert.deepEqual(errors, [])

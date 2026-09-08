@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createGource } from './gource/renderer.js'
-import { startLoad, pollStatus, cancelJob, STATIC } from './api.js'
+import { startLoad, pollStatus, cancelJob, STATIC, musicTracks, musicFileUrl } from './api.js'
 import RepoSearch from './RepoSearch.jsx'
 import TrendingPanel from './TrendingPanel.jsx'
+import GiteaPicker from './GiteaPicker.jsx'
+
+import { comparisonWindow, countUpTo, timeAt } from './compare-window.js'
 
 const PLAYBACK_SECONDS = 60
 const SPEEDS = [0.5, 1, 2, 4]
 const fmtDate = ts => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-/** Commits at or before `ts`, by binary search over the sorted timestamps. */
-function countUpTo(stamps, ts) {
-  let lo = 0, hi = stamps.length
-  while (lo < hi) { const mid = (lo + hi) >> 1; if (stamps[mid] <= ts) lo = mid + 1; else hi = mid }
-  return lo
-}
-
 /** Loads one repository through the ordinary browser/server path. */
 function loadRepo(name, options, onProgress) {
   return new Promise((resolve, reject) => {
@@ -39,12 +35,17 @@ function loadRepo(name, options, onProgress) {
  * same calendar so you see who was busier in the same window; "age" starts each
  * at its own first commit, comparing like for like.
  */
-export default function CompareView({ primary, initial = [], privacy = 'off', maxCommits, onClose }) {
+export default function CompareView({ primary, initial = [], privacy = 'off', maxCommits, gitea = null, giteaRepos = [], onClose }) {
   const stampsOf = data => data.commits.map(c => c.ts)
   const [panels, setPanels] = useState(() => [{ name: primary.repo, data: primary, stamps: primary.commits.map(c => c.ts) }])
   const [pending, setPending] = useState('')
   const [error, setError] = useState('')
   const [align, setAlign] = useState('dates')
+  const [exporting, setExporting] = useState(null)   // null | { status, pct, stage, url, filename, bytes, codecs, error }
+  const [exportOpen, setExportOpen] = useState(false)
+  const [tracks, setTracks] = useState([])
+  const [settings, setSettings] = useState({ resolution: '1080p', seconds: 30, music: 'none' })
+  const exportCtl = useRef(null)
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
   const [u, setU] = useState(0)
@@ -71,6 +72,31 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
   }, [panels, maxCommits])
 
   // repositories named in the shared link
+  useEffect(() => { musicTracks().then(t => { setTracks(t); setSettings(s => ({ ...s, music: t[0]?.id || 'none' })) }).catch(() => setTracks([])) }, [])
+
+  // The video is rendered here, frame by frame, with the same clock the panels use.
+  const runExport = useCallback(async () => {
+    if (!ready.length) return
+    setPlaying(false)
+    const { renderComparisonVideo } = await import('./browser-export/compare.js')
+    exportCtl.current = new AbortController()
+    if (exporting?.url) URL.revokeObjectURL(exporting.url)
+    setExporting({ status: 'rendering', pct: 0, stage: 'starting' })
+    try {
+      const out = await renderComparisonVideo({
+        panels: ready, align, seconds: settings.seconds, resolution: settings.resolution, fps: 30, privacy,
+        music: settings.music, musicUrl: settings.music !== 'none' ? musicFileUrl(settings.music) : '',
+        signal: exportCtl.current.signal,
+        onProgress: p => setExporting(e => (e && e.status === 'rendering' ? { ...e, ...p } : e)),
+      })
+      setExporting({ status: 'done', pct: 100, url: URL.createObjectURL(out.blob), filename: out.filename, bytes: out.blob.size,
+        codecs: `${out.video === 'avc' ? 'H.264' : 'VP9'}${out.audio === 'none' ? '' : out.audio === 'aac' ? ' · AAC' : ' · Opus'}` })
+    } catch (e) {
+      setExporting({ status: e.name === 'AbortError' ? 'cancelled' : 'error', error: e.name === 'AbortError' ? '' : e.message })
+    }
+  }, [ready, align, settings, privacy, exporting])
+  useEffect(() => () => { if (exportCtl.current) exportCtl.current.abort() }, [])
+
   const bootstrapped = useRef(false)
   useEffect(() => {
     if (bootstrapped.current) return
@@ -79,15 +105,8 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
   }, [initial, primary.repo, add])
 
   // one shared window: real dates, or each project from its own first commit
-  const window_ = useMemo(() => {
-    if (!ready.length) return { from: 0, to: 1, span: 1 }
-    if (align === 'age') { const span = Math.max(1, ...ready.map(p => p.data.stats.to - p.data.stats.from)); return { from: 0, to: span, span } }
-    const from = Math.min(...ready.map(p => p.data.stats.from)), to = Math.max(...ready.map(p => p.data.stats.to))
-    return { from, to, span: Math.max(1, to - from) }
-  }, [ready, align])
-  const tsFor = useCallback((panel, progress) => align === 'age'
-    ? panel.data.stats.from + window_.span * progress
-    : window_.from + window_.span * progress, [window_, align])
+  const window_ = useMemo(() => comparisonWindow(ready.map(p => p.data), align), [ready, align])
+  const tsFor = useCallback((panel, progress) => timeAt(panel.data, window_, align, progress), [window_, align])
 
   // keep the canvas backing store matched to its panel. Left unsized, a canvas
   // keeps its default 300×150 and CSS stretches it — the graph renders correct
@@ -163,6 +182,8 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
         <div className="compare-add">
           <RepoSearch onPick={add} disabled={!!pending} label="Add a project to compare" placeholder={pending ? `Loading ${pending}…` : 'Search GitHub, or owner/repo…'} />
           <TrendingPanel staticDemo={STATIC} onPick={add} />
+          {gitea && <GiteaPicker label={gitea.label} repos={giteaRepos} onPick={name => add(`gitea:${name}`)} />}
+          <button type="button" className="compare-export-open" disabled={ready.length < 1} onClick={() => setExportOpen(true)}>Export video ↗</button>
         </div>
         <div className="compare-align" role="group" aria-label="Time alignment">
           <button type="button" aria-pressed={align === 'dates'} className={align === 'dates' ? 'is-active' : ''} onClick={() => setAlign('dates')} title="Put both projects on the same calendar">Same dates</button>
@@ -171,6 +192,26 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
         <button type="button" className="compare-exit" onClick={onClose}>Exit ×</button>
       </header>
       {error && <p className="compare-error" role="alert">{error}</p>}
+      {exportOpen && (
+        <div className="compare-export" role="dialog" aria-label="Export comparison video">
+          <div className="compare-export-row">
+            <label>Resolution<select value={settings.resolution} onChange={e => setSettings(s => ({ ...s, resolution: e.target.value }))}><option value="1080p">1080p</option><option value="720p">720p · faster</option></select></label>
+            <label>Length<select value={settings.seconds} onChange={e => setSettings(s => ({ ...s, seconds: +e.target.value }))}><option value={15}>15 seconds</option><option value={30}>30 seconds</option><option value={60}>60 seconds</option></select></label>
+            <label>Music<select value={settings.music} onChange={e => setSettings(s => ({ ...s, music: e.target.value }))}>
+              {tracks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+              <option value="none">No music</option>
+            </select></label>
+            {(!exporting || ['done', 'error', 'cancelled'].includes(exporting.status))
+              ? <button type="button" className="compare-export-go" onClick={runExport}>Render {ready.length} projects →</button>
+              : <button type="button" className="compare-export-go" onClick={() => exportCtl.current?.abort()}>Cancel</button>}
+            <button type="button" className="compare-exit" onClick={() => setExportOpen(false)}>Close</button>
+          </div>
+          {exporting?.status === 'rendering' && <div className="compare-export-progress"><progress value={exporting.pct || 0} max="100" aria-label="Export progress" /><span>{exporting.stage === 'soundtrack' ? 'Composing the soundtrack…' : exporting.stage === 'encoding' ? 'Finishing your MP4…' : `Rendering · ${exporting.pct || 0}%`} · keep this tab open</span></div>}
+          {exporting?.status === 'done' && <p className="compare-export-done"><a href={exporting.url} download={exporting.filename}>Download MP4 ↓ · {(exporting.bytes / 1048576).toFixed(1)} MB</a><span> rendered in your browser ({exporting.codecs})</span></p>}
+          {exporting?.status === 'error' && <p className="compare-error" role="alert">{exporting.error}</p>}
+          {exporting?.status === 'cancelled' && <p className="compare-export-done">Export cancelled.</p>}
+        </div>
+      )}
       <div className="compare-grid" data-count={panels.length}>
         {panels.map(panel => (
           <section key={panel.name} className="compare-panel">

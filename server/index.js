@@ -18,7 +18,7 @@ app.disable('x-powered-by')
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://gravatar.com; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'")
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://gravatar.com; media-src 'self' blob:; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'")
   next()
 })
 app.use('/api/exports', express.json({ limit: '40mb' })) // custom export music arrives base64 in the body
