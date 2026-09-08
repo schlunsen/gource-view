@@ -1,6 +1,7 @@
 // Static hosting supports prebuilt examples and Git history processed on-device.
 import { cachedHistory, historyKey } from './browser-git/cache.js'
-import { parseRepository, browserLimit } from './browser-git/options.js'
+import { parseRepository, browserLimit, DEFAULT_COMMITS } from './browser-git/options.js'
+export { DEFAULT_COMMITS }
 export const STATIC = import.meta.env.VITE_STATIC === '1'
 export const BASE = import.meta.env.BASE_URL || '/'
 export const REPO_URL = import.meta.env.VITE_REPO_URL || 'https://github.com'
@@ -24,11 +25,14 @@ export async function getConfig() {
 /** Start a server job, prebuilt example, or browser worker job. */
 export async function startLoad(repo, options) {
   if (!STATIC) return json('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repo, options }) })
-  const name = parseRepository(repo), maxCommits = browserLimit(options?.maxCommits ?? 3000)
+  const name = parseRepository(repo), maxCommits = browserLimit(options?.maxCommits ?? DEFAULT_COMMITS)
   const idx = await demoIndex().catch(() => ({ demos: [] }))
   const demo = idx.demos.find(d => d.name.toLowerCase() === name.toLowerCase())
-  // Prebuilt demos load instantly; use one when the requested depth is what it was baked at.
-  if (demo && maxCommits === (demo.limit ?? 300) && !options?.ref && !options?.refresh && !await cachedHistory(historyKey(name, '', maxCommits))) return { job: demo.slug, static: true }
+  // Prebuilt demos load instantly. Use one when nobody asked for a specific
+  // depth, or when the request matches what it was baked at; an explicit deeper
+  // request ("Load more history") falls through to a real clone.
+  const bakedLimit = demo?.limit ?? 300
+  if (demo && (maxCommits === DEFAULT_COMMITS || maxCommits === bakedLimit) && !options?.ref && !options?.refresh && !await cachedHistory(historyKey(name, '', maxCommits))) return { job: demo.slug, static: true }
   const { startBrowserLoad } = await import('./browser-git/client.js')
   return startBrowserLoad(name, { ...options, maxCommits })
 }
