@@ -15,9 +15,18 @@ const build = (name, from, count, step) => ({
 })
 const EARLY = build('early/project', 1500000000, 60, 10 * DAY)         // starts first, slow
 const LATE = build('late/project', 1500000000 + 300 * DAY, 120, 4 * DAY) // starts later, busier
-const payloads = { 'early/project': EARLY, 'late/project': LATE }
+const TREND = build('trending/project', 1500000000 + 100 * DAY, 40, 8 * DAY)
+const FOUND = build('searched/project', 1500000000 + 200 * DAY, 30, 9 * DAY)
+const payloads = { 'early/project': EARLY, 'late/project': LATE, 'trending/project': TREND, 'searched/project': FOUND }
 const jobs = new Map()
 await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'early/project', gitea: null } }))
+// trending is a baked list; GitHub search answers cross-origin. Both stay in the browser.
+await page.route('**/api/trending', r => r.fulfill({ json: { fetchedAt: Date.now(), periods: { weekly: { source: 'github.com/trending', repos: [{ name: 'trending/project', description: 'Hot', language: 'Go', gained: 900, stars: 9000, sizeMb: 4 }] } } } }))
+let searchQueries = 0
+await page.route('https://api.github.com/search/repositories**', r => {
+  searchQueries++
+  r.fulfill({ json: { items: [{ full_name: 'searched/project', stargazers_count: 4200, language: 'Rust', description: 'Found by search' }] } })
+})
 await page.route('**/api/load', r => { const body = r.request().postDataJSON(); const id = `job-${jobs.size}`; jobs.set(id, body.repo); r.fulfill({ json: { job: id } }) })
 await page.route('**/api/status/*', r => {
   const id = new URL(r.request().url()).pathname.split('/').pop()
@@ -61,6 +70,35 @@ await page.screenshot({ path: `${S}/compare-age.png` })
 await page.getByRole('slider', { name: 'Comparison progress' }).fill('1')
 await page.waitForTimeout(800)
 assert.deepEqual(await counts(), [EARLY.stats.commits, LATE.stats.commits], 'every commit is played by the end')
+
+// every panel's canvas is sized to its box, not left at the default 300x150
+const sizes = await page.locator('.compare-panel canvas').evaluateAll(list => list.map(c => {
+  const box = c.parentElement.getBoundingClientRect()
+  return { w: c.width, h: c.height, boxW: Math.round(box.width), boxH: Math.round(box.height) }
+}))
+assert.equal(sizes.length, 2)
+for (const s of sizes) {
+  assert.notDeepEqual([s.w, s.h], [300, 150], `canvas left at the default size: ${JSON.stringify(s)}`)
+  const scale = s.w / s.boxW
+  assert.ok(scale >= 1 && scale <= 2.01, `backing store should match its box at 1-2x dpr, got ${scale.toFixed(2)} (${JSON.stringify(s)})`)
+  assert.ok(Math.abs(s.h / s.boxH - scale) < 0.05, `aspect ratio should match its box (${JSON.stringify(s)})`)
+}
+
+// a project can be added from trending, without leaving the comparison
+await view.getByRole('button', { name: /Trending/ }).click()
+await view.getByRole('listbox', { name: 'Trending repositories' }).getByRole('option').first().click()
+await page.locator('.compare-panel').nth(2).locator('canvas').waitFor({ timeout: 60000 })
+assert.equal(await page.locator('.compare-panel').count(), 3, 'trending adds a third project')
+
+// and by searching GitHub from the browser
+await page.getByLabel('Add a project to compare').fill('searched')
+await page.locator('.repo-search-results [role=option]').first().waitFor({ timeout: 15000 })
+assert.ok(searchQueries > 0, 'the browser queried GitHub search directly')
+assert.match(await page.locator('.repo-search-results').innerText(), /searched\/project/)
+await page.locator('.repo-search-results [role=option]').first().click()
+await page.locator('.compare-panel').nth(3).locator('canvas').waitFor({ timeout: 60000 })
+assert.equal(await page.locator('.compare-panel').count(), 4, 'search adds a fourth project')
+await page.screenshot({ path: `${S}/compare-four.png` })
 
 await page.getByRole('button', { name: 'Exit ×' }).click()
 assert.equal(await page.locator('.compare-view').count(), 0, 'exits back to the viewer')
