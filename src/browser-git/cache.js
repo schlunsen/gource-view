@@ -6,7 +6,11 @@ const open = () => new Promise((resolve, reject) => {
   request.onsuccess = () => resolve(request.result)
   request.onerror = () => reject(request.error)
 })
-export const historyKey = (repo, ref, limit) => JSON.stringify([repo.toLowerCase(), ref || '', limit])
+// Bump when the shape or meaning of a stored history changes, so saved copies
+// from an older build are ignored instead of being replayed as if current.
+// v2: commits are timestamped by when they landed, not when they were authored.
+export const HISTORY_SCHEMA = 2
+export const historyKey = (repo, ref, limit) => JSON.stringify([HISTORY_SCHEMA, repo.toLowerCase(), ref || '', limit])
 export async function cachedHistory(key) {
   let db
   try {
