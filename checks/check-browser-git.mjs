@@ -49,7 +49,7 @@ try {
    await route.fulfill({ status: Number.parseInt(headers.status || '200'), headers: { 'content-type': headers['content-type'], 'access-control-allow-origin': '*' }, body: response.subarray(split + 4) })
  })
  const waitViewer = async () => { await page.waitForFunction(() => document.querySelector('[role=alert]') || window.__gource && !document.querySelector('[role=status]'), {}, { timeout: 30000 }); assert.equal(await page.getByRole('alert').count(), 0, await page.getByRole('alert').allTextContents()); const pause = page.getByRole('button', { name: 'Pause', exact: true }); if (await pause.count()) await pause.click() }
- await page.goto(BASE)
+ await page.goto(new URL('viewer.html', BASE).href)
  await waitViewer()
  assert.equal(gitRequests, 0, 'prebuilt example opens without Git or relay')
  await page.getByRole('button', { name: 'Load more history' }).click()

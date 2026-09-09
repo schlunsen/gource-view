@@ -32,7 +32,7 @@ await page.route('**/api/status/*', r => {
   const id = new URL(r.request().url()).pathname.split('/').pop()
   r.fulfill({ json: { status: 'done', result: payloads[jobs.get(id)] } })
 })
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 30000 })
 await page.getByRole('button', { name: /Compare/ }).click()
 const view = page.locator('.compare-view')

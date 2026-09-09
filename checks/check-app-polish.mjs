@@ -15,7 +15,7 @@ await page.route('**/api/status/*', r => {
   if (mode === 'offline') return r.abort('failed')
   return r.fulfill({ json: mode === 'done' ? { status: 'done', result: result(loads[n].repo, loads[n].options.ref) } : mode === 'error' ? { status: 'error', error: 'Repository is unavailable' } : { status: 'working', progress: { pct: 25, detail: 'Reading history…' } } })
 })
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
 assert.equal(await page.locator('.repo-description').innerText(), 'A small application for organizing team notes.')
 await page.getByRole('button', { name: 'stats', exact: true }).click()

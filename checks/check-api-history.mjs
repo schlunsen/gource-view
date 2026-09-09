@@ -24,7 +24,7 @@ try {
   })
   let gitRelay = 0
   await page.route('https://cors.isomorphic-git.org/**', r => { gitRelay++; r.abort() })
-  await page.goto(BASE)
+  await page.goto(new URL('viewer.html', BASE).href)
   await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 30000 })
   await page.locator('#repo').fill('https://github.com/huge/repo'); await page.getByRole('button', { name: 'Load', exact: true }).click()
   await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 60000 })

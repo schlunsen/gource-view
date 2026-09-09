@@ -3,7 +3,7 @@ const S = process.env.S, BASE = process.env.BASE, REPO = process.env.REPO
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
 const errors = []; page.on('pageerror', e => errors.push(e.message))
-await page.goto(BASE)
+await page.goto(new URL('viewer.html', BASE).href)
 await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 240000 }) // default repo finished
 const input = page.getByRole('textbox').first()
 await input.fill(REPO)

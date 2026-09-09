@@ -4,7 +4,7 @@ import GiteaPicker from './GiteaPicker.jsx'
 import TrendingPanel from './TrendingPanel.jsx'
 import RepoDiscovery from './RepoDiscovery.jsx'
 import VideoMode from './VideoMode.jsx'
-import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTracks, giteaRepos as fetchGiteaRepos, DEFAULT_COMMITS } from './api.js'
+import { BASE, STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTracks, giteaRepos as fetchGiteaRepos, DEFAULT_COMMITS } from './api.js'
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
 import { clearHistories } from './browser-git/cache.js'
 import GithubToken from './GithubToken.jsx'
@@ -332,9 +332,9 @@ export default function App() {
       <header className="app-header flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 border-b border-line bg-panel">
         <div className="flex items-baseline gap-2 shrink-0">
           <span aria-hidden="true" className="text-accent font-mono text-sm tracking-tight">✳</span>
-          <h1 className="font-display font-semibold text-[15px] tracking-tight text-ink-100">
+          <a href={BASE} aria-label="GourceView home" className="font-display font-semibold text-[15px] tracking-tight text-ink-100">
             Gource<span className="text-accent">View</span>
-          </h1>
+          </a>
           <span className="hidden sm:inline font-mono text-[11px] text-ink-500">CODE IN MOTION</span>
           {STATIC && <a className="github-source-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">
             View on GitHub <span aria-hidden="true">↗</span>

@@ -5,7 +5,7 @@ const BASE = process.env.BASE, OUT = process.env.OUT
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true })
 const errors = []; page.on('pageerror', e => errors.push(e.message))
-await page.goto(BASE)
+await page.goto(new URL('viewer.html', BASE).href)
 await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 240000 })
 await page.getByRole('button', { name: 'Export video' }).click()
 await page.getByLabel('Resolution').selectOption('720p')

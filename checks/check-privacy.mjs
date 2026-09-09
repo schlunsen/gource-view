@@ -13,7 +13,7 @@ await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'acme/se
 await page.route('**/api/music', r => r.fulfill({ json: { tracks: [] } }))
 await page.route('**/api/load', r => r.fulfill({ json: { job: 'test' } }))
 await page.route('**/api/status/test', r => r.fulfill({ json: { status: 'done', result } }))
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
 await page.getByRole('slider').evaluate(el => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, el.max); el.dispatchEvent(new Event('input', { bubbles: true })) })
 await page.waitForTimeout(800)

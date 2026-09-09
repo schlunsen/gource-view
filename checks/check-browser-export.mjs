@@ -14,7 +14,7 @@ else try { browser = await chromium.launch({ headless: true, channel: 'chrome' }
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   const errors = []; page.on('pageerror', e => errors.push(e.message))
-  await page.goto(BASE)
+  await page.goto(new URL('viewer.html', BASE).href)
   await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 30000 })
   await page.locator('.repo-discovery summary').click()
   await page.getByRole('button', { name: 'pallets/flask', exact: true }).click()

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { run, collectCommits, summarize } from '../server/history.js'
 import { createDescriptionLoader } from '../server/repo-description.js'
 import { fetchAllPeriods } from '../server/trending.js'
+import { weeklyLeaders } from '../src/landing-data.js'
 const repositoryDescription = createDescriptionLoader({ githubToken: process.env.GITHUB_TOKEN || '' })
 
 const DEMO_COMMITS = 3000 // must match the viewer's default so demos hit the instant path
@@ -17,6 +18,10 @@ const out = path.resolve(process.argv[2] || 'dist')
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 // The hosting repository itself comes first (the Pages demo opens on it).
 const SELF = process.env.GITHUB_REPOSITORY || process.env.DEMO_SELF || ''
+let weekly = null
+try { weekly = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '') } catch (e) { console.warn(`trending unavailable: ${e.message}`) }
+let featured = []
+try { featured = weeklyLeaders(weekly).map(r => ({ name: r.name, note: 'trending this week' })) } catch { /* weekly gains unavailable */ }
 const DEMOS = [
   ...(SELF ? [{ name: SELF, note: 'this project' }] : []),
   { name: 'expressjs/express', note: 'Node' },
@@ -26,7 +31,8 @@ const DEMOS = [
   { name: 'fastify/fastify', note: 'Node' },
   { name: 'axios/axios', note: 'JS' },
 ]
-const only = process.env.DEMO_LIMIT ? DEMOS.slice(0, Number(process.env.DEMO_LIMIT)) : DEMOS
+const candidates = process.env.DEMO_LIMIT ? DEMOS.slice(0, Number(process.env.DEMO_LIMIT)) : [...DEMOS, ...featured]
+const only = candidates.filter((d, i) => candidates.findIndex(x => x.name === d.name) === i)
 const slug = name => name.toLowerCase().replace(/[^a-z0-9.]+/g, '-')
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'gource-static-'))
 fs.mkdirSync(path.join(out, 'data'), { recursive: true })
@@ -56,7 +62,8 @@ fs.writeFileSync(path.join(out, 'data', 'index.json'), JSON.stringify({ builtAt:
 // workflow runs daily, which matches the server's refresh cadence. Failure
 // leaves the previous deploy's list unavailable but never breaks the build.
 try {
-  const t = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '')
+  const t = weekly
+  if (!t) throw new Error('No trending feed available')
   fs.writeFileSync(path.join(out, 'data', 'trending.json'), JSON.stringify(t))
   console.log(`trending: ${Object.entries(t.periods).map(([id, p]) => `${id} ${p.repos.length}`).join(', ')}`)
 } catch (e) { console.warn(`trending unavailable: ${e.message}`) }

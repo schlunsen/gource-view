@@ -20,7 +20,7 @@ await page.route('https://api.github.com/search/repositories**', r => {
     { full_name: 'preactjs/preact', stargazers_count: 37000, language: 'JavaScript', description: 'Fast 3kB alternative' },
   ] } })
 })
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 30000 })
 
 // typing a search term offers repositories
