@@ -144,7 +144,7 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
   // the frame, so seed from it rather than performance.now() — mixing the two
   // yields a negative delta and runs the clock backwards.
   useEffect(() => {
-    let raf, last = null
+    let raf, last = null, cameraSeconds = 0
     const frame = now => {
       if (last === null) last = now
       const dt = Math.max(0, Math.min(0.25, (now - last) / 1000)); last = now
@@ -153,8 +153,9 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
         if (uRef.current >= 1) setPlaying(false)
         setU(uRef.current)
       }
+      if (playRef.current) cameraSeconds += dt
       const { ready: current, tsFor: at } = frameRef.current
-      for (const panel of current) engines.current.get(panel.name)?.renderAt(at(panel, uRef.current), 0)
+      for (const panel of current) engines.current.get(panel.name)?.renderAt(at(panel, uRef.current), 0, cameraSeconds)
       raf = requestAnimationFrame(frame)
     }
     raf = requestAnimationFrame(frame)

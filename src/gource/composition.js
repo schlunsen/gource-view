@@ -143,7 +143,7 @@ export function createComposition({ ctx, data, config, renderer, W, H }) {
   /** Draw one full frame at `seconds` on a canvas whose backing size is pixelRatio × logical. */
   function drawFrame(seconds, canvas) {
     const t = timeline(seconds)
-    renderer.renderAt(t.ts, t.settle)
+    renderer.renderAt(t.ts, t.settle, seconds)
     const scale = canvas.width / W
     ctx.setTransform(scale, 0, 0, scale, 0, 0)
     background()

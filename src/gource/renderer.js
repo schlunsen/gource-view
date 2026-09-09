@@ -1,3 +1,4 @@
+import { motion, glide, nearestAngle } from './camera-motion.js'
 import { drawEnergyBeam, drawCommitWave } from './energy.js'
 import { createBackdrop, drawDust, createBloom } from './atmosphere.js'
 import { organicLayout } from './organic-layout.js'
@@ -206,7 +207,7 @@ export function createGource(canvasEl, repo, options = {}) {
   // ---- state ----
   let curTs = from
   let animationTs = null
-  let lastRenderTs = null
+  let lastCameraSeconds = null, lastManualFrame = null
   let lastHovered = null
   let lastCollapsed = new Set()
   let playing = true
@@ -264,6 +265,7 @@ export function createGource(canvasEl, repo, options = {}) {
 
   // ---- layout positions (px) ----
   let zoom = 1, panX = 0, panY = 0, dragging = false
+  const zoomMotion = motion(0), panMotionX = motion(0), panMotionY = motion(0)
   let pointer = null
   const activityWindow = histPerSec * 2
   const events = buildEvents(repo.commits)
@@ -326,6 +328,8 @@ export function createGource(canvasEl, repo, options = {}) {
   // smoothly as a burst unfolds. Manual zoom/pan/wheel takes over until Reset.
   const CAM_MAX_ZOOM = 3 // never zoom in past 3× the full-graph fit
   const cam = { scale: 0, cx: graph.center[0], cy: graph.center[1], snap: true }
+  const cameraX = motion(cam.cx), cameraY = motion(cam.cy), cameraScale = motion(0)
+  const screenX = motion(0), screenY = motion(0)
   let userCamera = false
   let view = null
   function viewport() {
@@ -337,7 +341,12 @@ export function createGource(canvasEl, repo, options = {}) {
     return { aw, ah, cx, cy, full: Math.min(aw / graph.width, ah / graph.height) }
   }
   function updateCamera(dtWall, focus = []) {
-    view = viewport()
+    const nextView = viewport()
+    if (!view) { screenX.value = nextView.cx; screenY.value = nextView.cy }
+    view = { ...nextView, cx: glide(screenX, nextView.cx, dtWall, 0.35), cy: glide(screenY, nextView.cy, dtWall, 0.35) }
+    glide(zoomMotion, Math.log(zoom), dtWall, 0.18, 3)
+    glide(panMotionX, panX, dtWall, 0.12)
+    glide(panMotionY, panY, dtWall, 0.12)
     if (!cam.scale) cam.scale = view.full
     if (userCamera) return
     // Frame everything alive, plus anything about to be born (their final
@@ -397,16 +406,19 @@ export function createGource(canvasEl, repo, options = {}) {
       }
       cx = rcx * fl.cs + rcy * fl.sn; cy = -rcx * fl.sn + rcy * fl.cs
     }
-    if (cam.snap) { cam.scale = scale; cam.cx = cx; cam.cy = cy; cam.snap = false; return }
-    // Pull back briskly (a burst is arriving), dolly in and pan more lazily.
-    const kz = 1 - Math.exp(-dtWall * (scale < cam.scale ? 3.2 : 1.1))
-    const kp = 1 - Math.exp(-dtWall * 1.4)
-    cam.scale = Math.exp(lerp(Math.log(cam.scale), Math.log(scale), kz))
-    cam.cx = lerp(cam.cx, cx, kp); cam.cy = lerp(cam.cy, cy, kp)
+    if (cam.snap) {
+      cameraScale.value = Math.log(scale); cameraX.value = cx; cameraY.value = cy
+      cam.snap = false
+    }
+    // Screen-relative pan limits keep a far-away burst from throwing the scene.
+    // Logarithmic zoom gives the same gentle response at every graph size.
+    cam.scale = Math.exp(glide(cameraScale, Math.log(scale), dtWall, 1.25, 0.28))
+    cam.cx = glide(cameraX, cx, dtWall, 1.3, view.aw * 0.16 / cam.scale)
+    cam.cy = glide(cameraY, cy, dtWall, 1.3, view.ah * 0.16 / cam.scale)
   }
   // ---- flyover: a slow orbit + tilt + perspective over the ground plane ----
-  // Everything is a function of history time, so seeking and MP4 export show
-  // the exact same camera. Off under prefers-reduced-motion.
+  // Orbit advances on the presentation clock, independent of history skips.
+  // Switching pacing, seeking or replaying never resets its phase.
   // ---- privacy: hide paths, and optionally people, for closed-source videos ----
   let privacy = normalizePrivacy(options.privacy)
   let showClock = options.clock !== false
@@ -415,27 +427,31 @@ export function createGource(canvasEl, repo, options = {}) {
   const hidePaths = () => privacy !== 'off'
   let lastLabelCount = 0
   let flyover = !reduceMotion && options.flyover !== false
-  const TURN_SECONDS = 210 // one full orbit per 150 s of playback at 1×
+  const TURN_SECONDS = 210 // one orbit per 210 seconds on screen
   const TILT_BASE = 0.34, TILT_SWAY = 0.06
-  function flight() {
-    if (!flyover) return { cs: 1, sn: 0, cphi: 1, sphi: 0, breathe: 1 }
-    const wall = autoPace ? pacing.elapsed(now()) : (now() - from) / histPerSec
-    const th = (wall / TURN_SECONDS) * Math.PI * 2 + 0.025 * Math.sin(wall * 0.12)
-    const phi = TILT_BASE + TILT_SWAY * Math.sin(wall * 0.11)
-    return { cs: Math.cos(th), sn: Math.sin(th), cphi: Math.cos(phi), sphi: Math.sin(phi), breathe: 1 + 0.018 * Math.sin(wall * 0.13) }
+  let orbitTime = 0
+  const orbit = motion(0), tilt = motion(flyover ? TILT_BASE : 0), breathing = motion(1)
+  function flight(dt = 0, advance = false) {
+    if (advance && flyover) orbitTime += dt
+    const th = flyover ? (orbitTime / TURN_SECONDS) * Math.PI * 2 + 0.025 * Math.sin(orbitTime * 0.12) : 0
+    const phi = flyover ? TILT_BASE + TILT_SWAY * Math.sin(orbitTime * 0.11) : 0
+    const angle = glide(orbit, nearestAngle(th, orbit.value), dt, 1.1, 0.1)
+    const pitch = glide(tilt, phi, dt, 0.9, 0.18)
+    const breathe = glide(breathing, flyover ? 1 + 0.018 * Math.sin(orbitTime * 0.13) : 1, dt, 0.9)
+    return { cs: Math.cos(angle), sn: Math.sin(angle), cphi: Math.cos(pitch), sphi: Math.sin(pitch), breathe }
   }
   let fl = flight()
   // Returns [x, y, k]: k is the perspective factor (near > 1 > far), used for depth cues.
   function project([x, y]) {
-    const s = cam.scale * zoom * fl.breathe
+    const s = cam.scale * Math.exp(zoomMotion.value) * fl.breathe
     const gx = (x - cam.cx) * s, gy = (y - cam.cy) * s
     const rx = gx * fl.cs - gy * fl.sn, ry = gx * fl.sn + gy * fl.cs
     const D = Math.max(width, height) * 1.7
     const k = D / Math.max(D * 0.35, D - ry * fl.sphi)
-    return [view.cx + panX + rx * k, view.cy + panY + ry * fl.cphi * k, k]
+    return [view.cx + panMotionX.value + rx * k, view.cy + panMotionY.value + ry * fl.cphi * k, k]
   }
   function nodePos(n) { return project(graphPos(n)) }
-  function effectiveZoom() { return (cam.scale / view.full) * zoom }
+  function effectiveZoom() { return (cam.scale / view.full) * Math.exp(zoomMotion.value) }
   function wheel(e) {
     e.preventDefault()
     zoom = Math.max(0.4, Math.min(8, zoom * Math.exp(-e.deltaY * 0.001)))
@@ -652,11 +668,11 @@ export function createGource(canvasEl, repo, options = {}) {
     ctx.restore()
   }
 
-  function draw(dtWall = 0) {
+  function draw(dtWall = 0, advanceOrbit = playing) {
     wallClock += Math.min(0.1, Math.max(0, dtWall))
     ctx.clearRect(0, 0, width, height)
     posCache = new Map(); presenceCache = new Map()
-    fl = flight()
+    fl = flight(dtWall, advanceOrbit)
     // ---- activity heat: recently changed files warm the whole chain up to root ----
     const fresh = new Map()
     for (const n of visible) {
@@ -699,7 +715,7 @@ export function createGource(canvasEl, repo, options = {}) {
     // fold when the dots would sit closer than ~11 px apart (density, not size)
     const collapsed = new Set()
     for (const n of visible) if (n.type === 'dir' && n.fileCount >= COLLAPSE_FILES) {
-      const R = (graph.radii.get(n) || 0) * cam.scale * zoom
+      const R = (graph.radii.get(n) || 0) * cam.scale * Math.exp(zoomMotion.value)
       if (R * R / n.fileCount < 120) collapsed.add(n)
     }
     lastCollapsed = collapsed
@@ -820,7 +836,7 @@ export function createGource(canvasEl, repo, options = {}) {
       // folder bloom: a soft disc over the file ring so clusters read as one body
       if (isDir) {
         // capped in px so zooming in never turns a small folder into grey fog
-        const r = Math.min(110, (graph.radii.get(n) || 0) * cam.scale * zoom * depth)
+        const r = Math.min(110, (graph.radii.get(n) || 0) * cam.scale * Math.exp(zoomMotion.value) * depth)
         if (r > 8) {
           const bloom = ctx.createRadialGradient(nx, ny, 0, nx, ny, r)
           const strength = Math.max(0.45, Math.min(1, 36 / r))
@@ -834,7 +850,7 @@ export function createGource(canvasEl, repo, options = {}) {
 
       // a big folder folded into one disc: a dense body with a file count label
       if (isDir && collapsed.has(n)) {
-        const R = Math.max(14, (graph.radii.get(n) || 0) * cam.scale * zoom * depth)
+        const R = Math.max(14, (graph.radii.get(n) || 0) * cam.scale * Math.exp(zoomMotion.value) * depth)
         const disc = ctx.createRadialGradient(nx, ny, R * 0.15, nx, ny, R)
         disc.addColorStop(0, rgba(n.color, 0.45 * v.a)); disc.addColorStop(1, rgba(n.color, 0.07 * v.a))
         ctx.globalAlpha = 1; ctx.fillStyle = disc
@@ -1096,7 +1112,7 @@ export function createGource(canvasEl, repo, options = {}) {
   function frame(now) {
     let dt = (now - lastFrame) / 1000
     lastFrame = now
-    if (dt > 0.1) dt = 0.1
+    dt = Math.max(0, Math.min(0.1, dt))
     doResize() // pick up any size changes from React
     if (playing) {
       curTs += dt * histPerSec * speed * (autoPace ? pacing.paceAt(curTs) : 1)
@@ -1110,21 +1126,24 @@ export function createGource(canvasEl, repo, options = {}) {
 
   return {
     doResize,
-    renderAt(t, settleSeconds = 0) {
+    renderAt(t, settleSeconds = 0, presentationSeconds = null) {
       const next = Math.max(from, Math.min(to, t))
-      // Camera smoothing is in wall time: consecutive export frames are 1/fps apart.
-      const dtWall = lastRenderTs == null ? 0 : Math.max(0, Math.min(0.1, (next - lastRenderTs) / histPerSec))
-      // first frame, or a jump of more than a second of playback: don't glide from a stale camera
-      if (lastRenderTs == null || Math.abs(next - lastRenderTs) > histPerSec) cam.snap = true
-      lastRenderTs = next
+      const frameNow = performance.now() / 1000
+      const clock = presentationSeconds ?? (autoPace ? pacing.elapsed(next) : (next - from) / histPerSec) + settleSeconds
+      const delta = lastCameraSeconds == null ? 0 : clock - lastCameraSeconds
+      // Normal video frames use their exact output timestamps, including holds.
+      // Scrubbing and paused previews can settle without snapping to a new pose.
+      const dtWall = lastManualFrame == null ? 0 : Math.max(0, Math.min(0.1, delta > 0 && delta <= 0.25 ? delta : frameNow - lastManualFrame))
+      const advanceOrbit = delta > 0 && delta <= 0.25
+      lastCameraSeconds = clock; lastManualFrame = frameNow
       curTs = next
       animationTs = curTs + settleSeconds * histPerSec
       doResize()
-      draw(dtWall)
+      draw(dtWall, advanceOrbit)
       animationTs = null
     },
     // debug/test hook: on-screen positions of visible folders
-    camera() { return { scale: cam.scale, full: view?.full, zoom, cx: cam.cx, cy: cam.cy, userCamera, flyover, graph: { w: graph.width, h: graph.height }, canvas: { width, height } } },
+    camera() { return { scale: cam.scale, full: view?.full, zoom, cx: cam.cx, cy: cam.cy, userCamera, flyover, angle: orbit.value, tilt: tilt.value, renderedZoom: Math.exp(zoomMotion.value), panX: panMotionX.value, panY: panMotionY.value, graph: { w: graph.width, h: graph.height }, canvas: { width, height } } },
     probe() { return visible.filter(n => n.type === 'dir' && vstate(n).a > 0.5).map(n => { const [x, y] = nodePos(n); return { path: n.path, x, y, collapsed: lastCollapsed.has(n) } }) },
     resetView,
     authorColor(name) { return authorColor[name] || C.dir },
@@ -1143,7 +1162,7 @@ export function createGource(canvasEl, repo, options = {}) {
     warp(u) { return autoPace ? pacing.warp(u) : from + span * Math.max(0, Math.min(1, u)) },
     elapsed(ts) { return autoPace ? pacing.elapsed(ts) : Math.max(0, (ts - from) / histPerSec) },
     get playbackSeconds() { return autoPace ? pacing.playbackSeconds : span / histPerSec },
-    setFlyover(v) { flyover = !!v && !reduceMotion; if (!flyover) fl = flight() },
+    setFlyover(v) { flyover = !!v && !reduceMotion },
     zoomBy(factor) { zoom = Math.max(0.4, Math.min(8, zoom * factor)); userCamera = true },
     set onTick(fn) { onTick = fn },
     play() { if (curTs >= to) { curTs = from; vis.clear() } playing = true },
