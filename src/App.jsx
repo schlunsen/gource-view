@@ -8,6 +8,7 @@ import { STATIC, REPO_URL, getConfig, startLoad, pollStatus, cancelJob, musicTra
 import { PRIVACY_LABELS, buildPseudonyms, nextPrivacy, normalizePrivacy } from './gource/privacy.js'
 import { clearHistories } from './browser-git/cache.js'
 import GithubToken from './GithubToken.jsx'
+import RepoSearch from './RepoSearch.jsx'
 import CompareView from './CompareView.jsx'
 import { createGource } from './gource/renderer.js'
 
@@ -340,30 +341,17 @@ export default function App() {
           </a>}
         </div>
 
-        <form
-          className="flex flex-1 min-w-[200px] max-w-xl items-center gap-2"
-          onSubmit={(e) => { e.preventDefault(); if (repoInput.trim()) load(repoInput.trim(), repoInput.trim() === repo?.repo ? refRef.current : '') }}
-        >
-          <label htmlFor="repo" className="sr-only">Repository</label>
-          <input
-            id="repo"
-            value={repoInput}
-            onChange={(e) => setRepoInput(e.target.value)}
-            placeholder={config?.gitea ? `owner/repo, GitHub or ${config.gitea.label} URL…` : 'owner/repo or github.com URL…'}
-            className="flex-1 min-w-0 rounded-lg bg-ink border border-line px-3 py-2 font-mono text-[13px] text-ink-100 placeholder:text-ink-500"
-            style={{ height: 40 }}
-            spellCheck={false}
-            autoCapitalize="none"
-          />
-          <button
-            type="submit"
-            disabled={loading || !repoInput.trim()}
-            className="rounded-lg bg-accent text-accent-ink font-display font-semibold text-[13px] px-4 transition-colors duration-150 disabled:opacity-55 disabled:cursor-not-allowed"
-            style={{ height: 40 }}
-          >
-            {loading ? 'Loading' : 'Load'}
-          </button>
-        </form>
+        <RepoSearch
+          id="repo"
+          className="repo-search--header"
+          label="Repository"
+          value={repoInput}
+          onChange={setRepoInput}
+          onPick={name => load(name, name === repo?.repo ? refRef.current : '')}
+          buttonLabel={loading ? 'Loading' : 'Load'}
+          disabled={loading}
+          placeholder={config?.gitea ? `Search GitHub, owner/repo or ${config.gitea.label} URL…` : 'Search GitHub, or owner/repo…'}
+        />
 
         {config?.gitea && (
           <GiteaPicker label={config.gitea.label} repos={giteaRepos} onPick={name => { setRepoInput(`gitea:${name}`); load(`gitea:${name}`) }} />
