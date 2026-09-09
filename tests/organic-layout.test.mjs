@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { organicLayout } from '../src/gource/organic-layout.js'
+import { organicLayout, layoutSeries } from '../src/gource/organic-layout.js'
 
 function fixture(folderCount, filesPerFolder) {
   const root = { path: '', type: 'dir', children: new Map() }
@@ -77,4 +77,206 @@ test('dense file clusters have breathing room without escaping their folder', ()
     closest = Math.min(closest, Math.hypot(ax - bx, ay - by))
   }
   assert.ok(closest > 5, `file centers are only ${closest} units apart`)
+})
+
+/** Does segment ab properly cross segment cd? (shared endpoints do not count) */
+function crosses(a, b, c, d) {
+  const side = (p, q, r) => Math.sign((q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]))
+  const [o1, o2, o3, o4] = [side(a, b, c), side(a, b, d), side(c, d, a), side(c, d, b)]
+  return o1 !== o2 && o3 !== o4 && !!o1 && !!o2 && !!o3 && !!o4
+}
+/** A repo shaped like a real one: a few deep branches, a couple of wide ones. */
+function repoShape() {
+  const root = { path: '', type: 'dir', children: new Map(), parent: null }
+  const visible = []
+  const add = p => {
+    const parts = p.split('/')
+    let node = root
+    for (let i = 0; i < parts.length; i++) {
+      const path = parts.slice(0, i + 1).join('/')
+      let ch = node.children.get(path)
+      if (!ch) {
+        ch = { path, type: i === parts.length - 1 && p.includes('.') ? 'file' : 'dir', children: new Map(), parent: node }
+        if (ch.type === 'file') ch.children = null
+        node.children.set(path, ch); visible.push(ch)
+      }
+      node = ch
+    }
+  }
+  for (let i = 0; i < 22; i++) add(`src/client/features/f${i}/components/view${i}.tsx`)
+  for (let i = 0; i < 16; i++) add(`src/server/features/s${i}/services/svc${i}.ts`)
+  for (let i = 0; i < 14; i++) add(`.agents/skills/skill${i}/SKILL.md`)
+  for (let i = 0; i < 40; i++) add(`drizzle/meta/snap${i}.json`)
+  for (let i = 0; i < 8; i++) add(`web/src/routes/_marketing/library/topic${i}/page.tsx`)
+  for (const p of ['docs/a.md', 'public/logo.svg', 'scripts/seed.ts', 'self-host/compose.yml']) add(p)
+  return { root, visible }
+}
+/** A shallower, bushier shape: the tangent-cone rule bites here, not in repoShape. */
+function bushyShape() {
+  const root = { path: '', type: 'dir', children: new Map(), parent: null }
+  const visible = []
+  const add = p => {
+    const parts = p.split('/')
+    let node = root
+    for (let i = 0; i < parts.length; i++) {
+      const path = parts.slice(0, i + 1).join('/')
+      let ch = node.children.get(path)
+      if (!ch) {
+        ch = { path, type: i === parts.length - 1 && p.includes('.') ? 'file' : 'dir', children: new Map(), parent: node }
+        if (ch.type === 'file') ch.children = null
+        node.children.set(path, ch); visible.push(ch)
+      }
+      node = ch
+    }
+  }
+  for (const d of ['client/hooks', 'client/lib', 'components/ui', 'schemas', 'serverFunctions', 'types',
+    'server/db', 'server/lib', 'server/middleware', 'lib', 'routes/api/auth', 'routes/api/billing']) {
+    for (let i = 0; i < 5; i++) add(`src/${d}/f${i}.ts`)
+  }
+  for (const d of ['audit', 'backlinks', 'billing', 'domain', 'keywords', 'page', 'workflows']) {
+    for (let i = 0; i < 4; i++) add(`src/features/${d}/components/c${i}.tsx`)
+  }
+  for (const p of ['.github/workflows/ci.yml', 'docs/a.md', 'drizzle/meta/s0.json', 'public/logo.svg',
+    'scripts/seed.ts', 'self-host/compose.yml', '_marketing/src/routes/index.tsx', 'web/content/blog/p1.md']) add(p)
+  return { root, visible }
+}
+test('no two folder edges cross, and no edge cuts through a foreign folder', () => {
+  const { root, visible } = repoShape()
+  const { positions, radii } = organicLayout(root, visible)
+  const dirs = [root, ...visible.filter(n => n.type === 'dir')]
+  const edges = dirs.filter(n => n.parent).map(n => [positions.get(n.parent), positions.get(n), n])
+  let crossings = 0
+  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+    if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) crossings++
+  }
+  assert.equal(crossings, 0, `${crossings} of ${edges.length} branches cross`)
+  let through = 0
+  for (const [a, b, n] of edges) for (const m of dirs) {
+    if (m === n || m === n.parent) continue
+    const [cx, cy] = positions.get(m)
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy || 1
+    const t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cy - a[1]) * dy) / len))
+    if (Math.hypot(a[0] + t * dx - cx, a[1] + t * dy - cy) < radii.get(m)) through++
+  }
+  assert.equal(through, 0, `${through} branches run through an unrelated folder's files`)
+})
+test('branches curve with the ring, so drawing them bent cannot make them cross', () => {
+  const { root, visible } = repoShape()
+  const { positions } = organicLayout(root, visible)
+  const dirs = [root, ...visible.filter(n => n.type === 'dir')]
+  // the control point the renderer uses: the chord's midpoint lifted back out
+  // to the mean radius of the two ends
+  const curve = n => {
+    const [px, py] = positions.get(n.parent), [nx, ny] = positions.get(n)
+    const mx = (px + nx) / 2, my = (py + ny) / 2
+    const chord = Math.hypot(mx, my)
+    const mean = (Math.hypot(px, py) + Math.hypot(nx, ny)) / 2
+    const lift = chord > 1e-3 ? Math.min(1.6, mean / chord) : 1
+    const cx = mx * lift, cy = my * lift
+    const pts = []
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, q = 1 - t
+      pts.push([q * q * px + 2 * q * t * cx + t * t * nx, q * q * py + 2 * q * t * cy + t * t * ny])
+    }
+    return pts
+  }
+  const paths = dirs.filter(n => n.parent).map(curve)
+  let crossings = 0
+  for (let i = 0; i < paths.length; i++) for (let j = i + 1; j < paths.length; j++) {
+    for (let a = 0; a < 12; a++) for (let b = 0; b < 12; b++) {
+      if (crosses(paths[i][a], paths[i][a + 1], paths[j][b], paths[j][b + 1])) { crossings++; a = b = 12 }
+    }
+  }
+  assert.equal(crossings, 0, `${crossings} curved branches cross`)
+})
+
+test('a shallow, bushy tree stays crossing-free too', () => {
+  // Wide fans close to the centre are what force a ring outwards to keep its
+  // edges inside their tangent cone; without that push this shape crosses.
+  const { root, visible } = bushyShape()
+  const { positions } = organicLayout(root, visible)
+  const dirs = [root, ...visible.filter(n => n.type === 'dir')]
+  const edges = dirs.filter(n => n.parent).map(n => [positions.get(n.parent), positions.get(n)])
+  let crossings = 0
+  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+    if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) crossings++
+  }
+  assert.equal(crossings, 0, `${crossings} of ${edges.length} branches cross`)
+})
+
+/** A tree that grows: each folder's files arrive over the span, not all at once. */
+function growingShape() {
+  const root = { path: '', type: 'dir', children: new Map(), parent: null, firstTs: 0 }
+  const visible = []
+  let clock = 0
+  const add = p => {
+    const parts = p.split('/')
+    let node = root
+    clock += 10
+    for (let i = 0; i < parts.length; i++) {
+      const path = parts.slice(0, i + 1).join('/')
+      let ch = node.children.get(path)
+      if (!ch) {
+        ch = { path, type: i === parts.length - 1 && p.includes('.') ? 'file' : 'dir', children: new Map(), parent: node, firstTs: clock }
+        if (ch.type === 'file') ch.children = null
+        node.children.set(path, ch); visible.push(ch)
+      }
+      ch.firstTs = Math.min(ch.firstTs, clock)
+      node = ch
+    }
+  }
+  for (let round = 0; round < 6; round++) {
+    for (const d of ['src/client/hooks', 'src/server/db', 'src/server/lib', 'src/features/audit',
+      'src/features/keywords', 'docs', 'drizzle/meta', '.github/workflows']) {
+      for (let i = 0; i < 3; i++) add(`${d}/r${round}f${i}.ts`)
+    }
+    if (round > 2) for (let i = 0; i < 4; i++) add(`src/features/backlinks/late${round}_${i}.ts`)
+  }
+  return { root, visible }
+}
+test('the tree rearranges as history plays, and a seek lands on the same picture', () => {
+  const { root, visible } = growingShape()
+  const series = layoutSeries(root, visible, 6)
+  const span = [visible[0].firstTs, visible[visible.length - 1].firstTs]
+  const at = f => span[0] + (span[1] - span[0]) * f
+  // sampling out of order must not change what a moment looks like
+  const first = [...series.sample(at(0.4)).positions.entries()].map(([, p]) => p.join())
+  series.sample(at(1)); series.sample(at(0)); series.sample(at(0.9))
+  const again = [...series.sample(at(0.4)).positions.entries()].map(([, p]) => p.join())
+  assert.deepEqual(again, first)
+  // it must actually move, or there was no point
+  const early = series.snapshot(at(0.15)), late = series.snapshot(at(1))
+  assert.ok(late.width > early.width * 1.2, `tree did not grow: ${early.width} -> ${late.width}`)
+  // files ride their folder rather than drifting off it
+  for (const n of visible) {
+    if (n.type !== 'file') continue
+    const g = series.snapshot(at(0.55))
+    const [x, y] = g.positions.get(n), [px, py] = g.positions.get(n.parent)
+    assert.ok(Math.hypot(x - px, y - py) <= g.radii.get(n.parent) + 2, `${n.path} left its folder`)
+  }
+})
+test('folders that have settled do not cross while the tree rearranges', () => {
+  const { root, visible } = growingShape()
+  const series = layoutSeries(root, visible, 6)
+  const span = [visible[0].firstTs, visible[visible.length - 1].firstTs]
+  let worst = 0
+  for (let s = 0; s <= 60; s++) {
+    const t = span[0] + (span[1] - span[0]) * s / 60
+    const g = series.sample(t)
+    let k = 0
+    while (k < series.times.length - 2 && t > series.times[k + 1]) k++
+    const settledBy = series.times[k]
+    const edges = []
+    for (const n of visible) {
+      if (n.type !== 'dir' || !n.parent) continue
+      if (n.firstTs > settledBy || n.parent.firstTs > settledBy) continue   // still flying out of its parent
+      edges.push([g.positions.get(n.parent), g.positions.get(n)])
+    }
+    let x = 0
+    for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+      if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) x++
+    }
+    worst = Math.max(worst, x)
+  }
+  assert.equal(worst, 0, `${worst} settled branches cross mid-rearrangement`)
 })
