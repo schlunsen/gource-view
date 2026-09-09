@@ -261,5 +261,7 @@ The home page features the four largest weekly star gains in the GitHub Trending
 weekly feed, with synchronized playback of the last seven days in 60 seconds. Each preview opens the
 full viewer at `viewer.html`; existing `?repo=owner/repo` home-page links redirect
 there automatically. Previews use up to 3,000 commits and share pause, replay, and timeline controls. Search-based trending fallbacks are
-not presented as weekly star gains. The daily Pages build also bakes featured
-repositories so their previews can load without a browser clone.
+not presented as weekly star gains. The daily Pages build bakes only the four featured repositories. Landing previews
+load this processed JSON directly without Git downloads or browser history
+processing. All four histories must build successfully before publishing; a
+failure preserves the previous successful deployment.

@@ -16,23 +16,10 @@ const repositoryDescription = createDescriptionLoader({ githubToken: process.env
 const DEMO_COMMITS = 3000 // must match the viewer's default so demos hit the instant path
 const out = path.resolve(process.argv[2] || 'dist')
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-// The hosting repository itself comes first (the Pages demo opens on it).
-const SELF = process.env.GITHUB_REPOSITORY || process.env.DEMO_SELF || ''
-let weekly = null
-try { weekly = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '') } catch (e) { console.warn(`trending unavailable: ${e.message}`) }
-let featured = []
-try { featured = weeklyLeaders(weekly).map(r => ({ name: r.name, note: 'trending this week' })) } catch { /* weekly gains unavailable */ }
-const DEMOS = [
-  ...(SELF ? [{ name: SELF, note: 'this project' }] : []),
-  { name: 'expressjs/express', note: 'Node' },
-  { name: 'pallets/flask', note: 'Python' },
-  { name: 'gin-gonic/gin', note: 'Go' },
-  { name: 'tokio-rs/tokio', note: 'Rust' },
-  { name: 'fastify/fastify', note: 'Node' },
-  { name: 'axios/axios', note: 'JS' },
-]
-const candidates = process.env.DEMO_LIMIT ? DEMOS.slice(0, Number(process.env.DEMO_LIMIT)) : [...DEMOS, ...featured]
-const only = candidates.filter((d, i) => candidates.findIndex(x => x.name === d.name) === i)
+// Publish a complete featured set, or retain the previous successful Pages deploy.
+const weekly = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '')
+const only = weeklyLeaders(weekly).map(r => ({ name: r.name, note: 'trending this week' }))
+if (only.length !== 4) throw new Error('Expected four weekly featured repositories')
 const slug = name => name.toLowerCase().replace(/[^a-z0-9.]+/g, '-')
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'gource-static-'))
 fs.mkdirSync(path.join(out, 'data'), { recursive: true })
@@ -40,7 +27,7 @@ const index = []
 for (const demo of only) {
   const dir = path.join(work, slug(demo.name))
   process.stdout.write(`${demo.name} … `)
-  // A deep clone can time out or fail; one bad demo must not fail the whole deploy.
+  // Attempt every featured history; validate completeness before publishing.
   try {
     await run('git', ['clone', '--quiet', `--depth=${DEMO_COMMITS + 50}`, '--no-single-branch', `https://github.com/${demo.name}.git`, dir], { timeout: 300000 })
     const commits = await collectCommits(dir, { maxCommits: DEMO_COMMITS })
@@ -56,7 +43,7 @@ for (const demo of only) {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 }
-if (!index.length) throw new Error('no demo repositories could be built')
+if (index.length !== only.length) throw new Error('Featured histories are incomplete; keeping the previous Pages deployment')
 fs.writeFileSync(path.join(out, 'data', 'index.json'), JSON.stringify({ builtAt: Date.now(), demos: index }))
 // GitHub trending, baked as a static file so Pages needs no server. The
 // workflow runs daily, which matches the server's refresh cadence. Failure

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BASE, trending, startLoad, pollStatus, cancelJob } from './api.js'
+import { BASE, STATIC, trending, startLoad, pollStatus, cancelJob } from './api.js'
 import { createGource } from './gource/renderer.js'
 import { weeklyLeaders, WEEK } from './landing-data.js'
 import './styles/landing.css'
@@ -18,7 +18,7 @@ function Preview({ repo, timestamp, engines, onSettled }) {
     setError(false); setStatus('Loading repository history…')
     async function load() {
       try {
-        job = (await startLoad(repo.name, { maxCommits: 3000 })).job
+        job = (await startLoad(repo.name, { maxCommits: 3000, prebuiltOnly: STATIC })).job
         if (stopped) { await cancelJob(job); return }
         const poll = async () => {
           try {
@@ -59,7 +59,7 @@ function Preview({ repo, timestamp, engines, onSettled }) {
       }
     }
     // Stagger jobs so the shared server does not receive four cold clones at once.
-    timer = setTimeout(load, repo.rank * 1000)
+    timer = setTimeout(load, STATIC ? 0 : repo.rank * 1000)
     return () => { stopped = true; clearTimeout(timer); if (job) void cancelJob(job); observer?.disconnect(); registry.delete(repo.name); engine?.destroy() }
   }, [repo.name, repo.rank, timestamp, attempt, engines, onSettled])
   return <article className="landing-card">
