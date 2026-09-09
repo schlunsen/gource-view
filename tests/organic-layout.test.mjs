@@ -78,3 +78,85 @@ test('dense file clusters have breathing room without escaping their folder', ()
   }
   assert.ok(closest > 5, `file centers are only ${closest} units apart`)
 })
+
+/** Does segment ab properly cross segment cd? (shared endpoints do not count) */
+function crosses(a, b, c, d) {
+  const side = (p, q, r) => Math.sign((q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]))
+  const [o1, o2, o3, o4] = [side(a, b, c), side(a, b, d), side(c, d, a), side(c, d, b)]
+  return o1 !== o2 && o3 !== o4 && !!o1 && !!o2 && !!o3 && !!o4
+}
+/** A repo shaped like a real one: a few deep branches, a couple of wide ones. */
+function repoShape() {
+  const root = { path: '', type: 'dir', children: new Map(), parent: null }
+  const visible = []
+  const add = p => {
+    const parts = p.split('/')
+    let node = root
+    for (let i = 0; i < parts.length; i++) {
+      const path = parts.slice(0, i + 1).join('/')
+      let ch = node.children.get(path)
+      if (!ch) {
+        ch = { path, type: i === parts.length - 1 && p.includes('.') ? 'file' : 'dir', children: new Map(), parent: node }
+        if (ch.type === 'file') ch.children = null
+        node.children.set(path, ch); visible.push(ch)
+      }
+      node = ch
+    }
+  }
+  for (let i = 0; i < 22; i++) add(`src/client/features/f${i}/components/view${i}.tsx`)
+  for (let i = 0; i < 16; i++) add(`src/server/features/s${i}/services/svc${i}.ts`)
+  for (let i = 0; i < 14; i++) add(`.agents/skills/skill${i}/SKILL.md`)
+  for (let i = 0; i < 40; i++) add(`drizzle/meta/snap${i}.json`)
+  for (let i = 0; i < 8; i++) add(`web/src/routes/_marketing/library/topic${i}/page.tsx`)
+  for (const p of ['docs/a.md', 'public/logo.svg', 'scripts/seed.ts', 'self-host/compose.yml']) add(p)
+  return { root, visible }
+}
+test('no two folder edges cross, and no edge cuts through a foreign folder', () => {
+  const { root, visible } = repoShape()
+  const { positions, radii } = organicLayout(root, visible)
+  const dirs = [root, ...visible.filter(n => n.type === 'dir')]
+  const edges = dirs.filter(n => n.parent).map(n => [positions.get(n.parent), positions.get(n), n])
+  let crossings = 0
+  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+    if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) crossings++
+  }
+  assert.equal(crossings, 0, `${crossings} of ${edges.length} branches cross`)
+  let through = 0
+  for (const [a, b, n] of edges) for (const m of dirs) {
+    if (m === n || m === n.parent) continue
+    const [cx, cy] = positions.get(m)
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy || 1
+    const t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cy - a[1]) * dy) / len))
+    if (Math.hypot(a[0] + t * dx - cx, a[1] + t * dy - cy) < radii.get(m)) through++
+  }
+  assert.equal(through, 0, `${through} branches run through an unrelated folder's files`)
+})
+test('branches curve with the ring, so drawing them bent cannot make them cross', () => {
+  const { root, visible } = repoShape()
+  const { positions } = organicLayout(root, visible)
+  const dirs = [root, ...visible.filter(n => n.type === 'dir')]
+  // the control point the renderer uses: the chord's midpoint lifted back out
+  // to the mean radius of the two ends
+  const curve = n => {
+    const [px, py] = positions.get(n.parent), [nx, ny] = positions.get(n)
+    const mx = (px + nx) / 2, my = (py + ny) / 2
+    const chord = Math.hypot(mx, my)
+    const mean = (Math.hypot(px, py) + Math.hypot(nx, ny)) / 2
+    const lift = chord > 1e-3 ? Math.min(1.6, mean / chord) : 1
+    const cx = mx * lift, cy = my * lift
+    const pts = []
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, q = 1 - t
+      pts.push([q * q * px + 2 * q * t * cx + t * t * nx, q * q * py + 2 * q * t * cy + t * t * ny])
+    }
+    return pts
+  }
+  const paths = dirs.filter(n => n.parent).map(curve)
+  let crossings = 0
+  for (let i = 0; i < paths.length; i++) for (let j = i + 1; j < paths.length; j++) {
+    for (let a = 0; a < 12; a++) for (let b = 0; b < 12; b++) {
+      if (crosses(paths[i][a], paths[i][a + 1], paths[j][b], paths[j][b + 1])) { crossings++; a = b = 12 }
+    }
+  }
+  assert.equal(crossings, 0, `${crossings} curved branches cross`)
+})

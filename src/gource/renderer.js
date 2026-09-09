@@ -746,10 +746,21 @@ export function createGource(canvasEl, repo, options = {}) {
       const depthFade = Math.max(0.55, 1 - n.depth * 0.08)
       const alpha = v.a * (hot ? 0.95 : Math.min(0.9, 0.42 * depthFade + heat * 0.5))
       const w = ((hot ? 2.8 : 2.1 - Math.min(1, n.depth * 0.18)) + heat * 0.6) * depth
-      // nearly straight, with a small hashed bend so branches read as grown, not plotted
-      const mx = (px + nx) / 2, my = (py + ny) / 2, dx = nx - px, dy = ny - py
-      const bend = ((hashStr(n.path) % 200) / 100 - 1) * 0.22
-      const cx = mx - dy * bend, cy = my + dx * bend
+      // Branches bow with the tree rather than at a random angle: the control
+      // point is the chord's midpoint pushed back out to the mean radius of the
+      // two ends. A branch that runs straight out from the trunk stays straight,
+      // one that reaches sideways sweeps around the ring — and because the
+      // curve then stays inside the wedge the layout gave it, bending an edge
+      // can no longer make it cross a neighbour (a random sideways bend did,
+      // hundreds of times, even on a layout with no crossings at all).
+      const dx = nx - px, dy = ny - py
+      const [ox, oy] = graphPos(root)
+      const gp = graphPos(n.parent), gn = graphPos(n)
+      const gmx = (gp[0] + gn[0]) / 2 - ox, gmy = (gp[1] + gn[1]) / 2 - oy
+      const chord = Math.hypot(gmx, gmy)
+      const mean = (Math.hypot(gp[0] - ox, gp[1] - oy) + Math.hypot(gn[0] - ox, gn[1] - oy)) / 2
+      const lift = chord > 1e-3 ? Math.min(1.6, mean / chord) : 1
+      const [cx, cy] = project([ox + gmx * lift, oy + gmy * lift])
       ctx.strokeStyle = `rgba(0,0,0,${(0.35 * alpha).toFixed(3)})`
       ctx.lineWidth = w + 2
       ctx.beginPath(); ctx.moveTo(px + 1.5, py + 1.5); ctx.quadraticCurveTo(cx + 1.5, cy + 1.5, nx + 1.5, ny + 1.5); ctx.stroke()
