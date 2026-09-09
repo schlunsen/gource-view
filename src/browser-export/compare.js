@@ -45,7 +45,7 @@ export async function renderComparisonVideo({
       ctx.fillStyle = '#070d16'; ctx.fillRect(0, 0, width, height)
       engines.forEach(({ panel, cell, engine, stamps }, index) => {
         const ts = timeAt(panel.data, window_, align, u)
-        engine.renderAt(ts, 0)
+        engine.renderAt(ts, 0, i / fps)
         const x = (index % cols) * cellW, y = Math.floor(index / cols) * cellH
         ctx.fillStyle = '#0a101b'; ctx.fillRect(x, y, cellW, cellH)
         ctx.drawImage(cell, x, y + header)
