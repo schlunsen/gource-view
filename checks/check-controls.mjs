@@ -18,7 +18,7 @@ const routes = async page => {
   await page.route('**/api/status/test', r => r.fulfill({ json: { status: 'done', result } }))
 }
 const page = await ctx.newPage(); await routes(page)
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
 const time = () => page.evaluate(() => window.__gource.time)
 const slider = page.getByRole('slider')

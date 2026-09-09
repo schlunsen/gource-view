@@ -1,0 +1,41 @@
+.landing { max-width: 1440px; margin: auto; padding: 0 40px; }
+.landing a { text-decoration: none; }
+.landing a:hover { color: var(--color-accent); }
+.landing a:focus-visible, .landing button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 5px; }
+.landing-nav { display: flex; justify-content: space-between; align-items: center; padding: 25px 0; border-bottom: 1px solid var(--color-line); }
+.landing-brand { font-weight: 700; font-size: 21px; }
+.landing-brand span, .landing-stars { color: var(--color-accent); }
+.landing-cta { display: inline-block; padding: 12px 20px; border: 1px solid var(--color-line); border-radius: 8px; font-size: 14px; }
+.landing-hero { padding: 76px 0 64px; max-width: 740px; }
+.landing-hero h1 { font-size: clamp(44px, 6.5vw, 84px); line-height: 1.02; letter-spacing: -.055em; font-weight: 600; margin: 22px 0; }
+.landing-hero p { font-size: 18px; line-height: 1.65; max-width: 520px; color: var(--color-ink-300); margin-bottom: 25px; }
+.landing-hero .landing-cta { background: var(--color-accent); color: var(--color-accent-ink); font-weight: 600; }
+.landing-section-head { display: flex; gap: 24px; align-items: end; justify-content: space-between; margin-bottom: 24px; }
+.landing-section-head h2 { font-size: clamp(23px, 3vw, 32px); letter-spacing: -.035em; margin: 9px 0; }
+.landing-section-head p, .landing-date, .landing-source { color: var(--color-ink-300); font-size: 12px; }
+.landing-date { text-align: right; font-family: var(--font-mono); }
+.landing-date span { display: block; color: var(--color-ink-500); margin-top: 7px; }
+.landing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.landing-card { border: 1px solid var(--color-line); background: var(--color-panel); border-radius: 12px; overflow: hidden; min-width: 0; }
+.landing-card header { display: flex; gap: 12px; padding: 17px 18px; align-items: center; font-size: 14px; }
+.landing-card header a { overflow-wrap: anywhere; }
+.landing-rank { color: var(--color-ink-500); font: 11px var(--font-mono); }
+.landing-stars { margin-left: auto; white-space: nowrap; font: 11px var(--font-mono); }
+.landing-canvas { height: clamp(240px, 26vw, 360px); position: relative; background: var(--color-stage); }
+.landing-canvas canvas { width: 100%; height: 100%; display: block; }
+.landing-status { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; text-align: center; color: var(--color-ink-300); font-size: 13px; }
+.landing button { border: 1px solid var(--color-line); padding: 9px 15px; border-radius: 6px; margin-top: 12px; cursor: pointer; }
+.landing-card footer { padding: 18px; display: flex; align-items: center; gap: 16px; justify-content: space-between; }
+.landing-card footer span { color: var(--color-accent); font: 10px var(--font-mono); }
+.landing-card footer p { color: var(--color-ink-300); font-size: 12px; line-height: 1.5; margin-top: 7px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.landing-card footer a { flex-shrink: 0; font-size: 12px; }
+.landing-source { margin: 18px 0 0; font-size: 11px; color: var(--color-ink-500); }
+.landing-footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 60px; padding: 24px 0; border-top: 1px solid var(--color-line); font-size: 12px; color: var(--color-ink-300); }
+.landing-skeleton { height: 430px; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 12px; display: grid; place-items: center; color: var(--color-ink-500); font-size: 13px; }
+.landing-feed-error { padding: 40px; border: 1px solid var(--color-line); border-radius: 12px; }
+@media (max-width: 700px) { .landing { padding: 0 18px; } .landing-hero { padding: 48px 0; } .landing-grid { grid-template-columns: 1fr; } .landing-section-head { flex-direction: column; align-items: start; } .landing-date { text-align: left; } .landing-canvas { height: 280px; } .landing-nav .landing-cta { padding: 9px 12px; } }
+.landing-playback { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 16px 0; font: 11px var(--font-mono); color: var(--color-ink-300); }
+.landing-playback button { margin: 0; }
+.landing-playback button:disabled { opacity: .5; cursor: wait; }
+.landing-playback input { flex: 1; min-width: 120px; accent-color: var(--color-accent); }
+.landing-playback time { min-width: 100px; }

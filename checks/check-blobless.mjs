@@ -53,7 +53,7 @@ try {
     const split = response.indexOf('\r\n\r\n'), headers = Object.fromEntries(response.subarray(0, split).toString().split('\r\n').map(l => { const i = l.indexOf(':'); return [l.slice(0, i).toLowerCase(), l.slice(i + 1).trim()] }))
     await route.fulfill({ status: Number.parseInt(headers.status || '200'), headers: { 'content-type': headers['content-type'], 'access-control-allow-origin': '*' }, body: response.subarray(split + 4) })
   })
-  await page.goto(BASE)
+  await page.goto(new URL('viewer.html', BASE).href)
   await page.locator('#repo').fill('huge/fixture')
   await page.getByRole('button', { name: 'Load', exact: true }).click()
   await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 120000 })

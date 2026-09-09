@@ -11,7 +11,7 @@ await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'express
 await page.route('**/api/trending', r => r.fulfill({ json: { fetchedAt: Date.now() - 3600000 * 5, periods: { weekly: { source: 'github.com/trending', repos: [{ name: 'acme/rocket', description: 'Fast rockets', language: 'Rust', gained: 1234, stars: 50701, sizeMb: 12 }, { name: 'big/model', description: 'Weights', language: 'Python', gained: 9000, stars: 90000, sizeMb: 2400 }] }, quarter: { source: 'search · created in the last 3 months', repos: [{ name: 'fresh/start', description: 'New', language: 'Go', gained: 777, stars: 777, sizeMb: 3 }] } } } }))
 await page.route('**/api/load', r => { loads.push(r.request().postDataJSON()); r.fulfill({ json: { job: 'j' } }) })
 await page.route('**/api/status/*', r => r.fulfill({ json: { status: 'done', result: result(loads[loads.length - 1].repo) } }))
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
 await page.getByRole('button', { name: /Trending/ }).click()
 const list = page.getByRole('listbox', { name: 'Trending repositories' })

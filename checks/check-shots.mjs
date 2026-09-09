@@ -9,7 +9,7 @@ await page.route('**/api/music', r => r.fulfill({ json: { tracks: [] } }))
 await page.route('**/api/trending', r => r.fulfill({ json: { fetchedAt: Date.now(), source: 'github.com/trending', repos: [] } }))
 await page.route('**/api/load', r => r.fulfill({ json: { job: 'test' } }))
 await page.route('**/api/status/test', r => r.fulfill({ json: { status: 'done', result } }))
-await page.goto('http://127.0.0.1:5173/')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 60000 })
 // deep into the history, then let it play so actors are mid-flight
 await page.getByRole('slider').evaluate(el => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, String(+el.min + (+el.max - +el.min) * 0.82)); el.dispatchEvent(new Event('input', { bubbles: true })) })
