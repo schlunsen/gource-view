@@ -51,11 +51,20 @@ export function organicLayout(root, visible) {
     for (const c of order[i].children) { c.depth = order[i].depth + 1; order.push(c) }
   }
   const deepest = order.reduce((m, b) => Math.max(m, b.depth), 0)
-  const widest = new Array(deepest + 1).fill(0)
   for (const b of order) {
     b.fileRadius = b.files.length ? ringRadius(b.files.length) + FILE_D * 0.5 : FILE_D * 0.8
     b.hub = b.fileRadius + FILE_D * 0.7                       // room its own files take
-    widest[b.depth] = Math.max(widest[b.depth], b.hub)
+  }
+  // How far apart two rings have to be: only a folder and its *own* children
+  // need the radial room, because every other pair is held apart by the
+  // angular packing below. Taking the widest folder of each depth instead
+  // would let one 46-file folder push every folder sharing its depth outwards,
+  // even a childless one that nothing is ever placed beyond.
+  const step = new Array(deepest + 1).fill(0)
+  for (const b of order) {
+    if (!b.children.length) continue
+    const kid = b.children.reduce((m, c) => Math.max(m, c.hub), 0)
+    step[b.depth + 1] = Math.max(step[b.depth + 1], b.hub + kid)
   }
   // one ring per depth, spaced so neighbouring rings' file circles clear.
   // `lean` is how much further out a ring has to sit than that minimum so that
@@ -66,7 +75,7 @@ export function organicLayout(root, visible) {
   const lean = new Array(deepest + 1).fill(1)
   const respace = () => {
     for (let d = 1; d <= deepest; d++) {
-      ring[d] = Math.max(ring[d - 1] + widest[d - 1] + widest[d] + CLEAR, ring[d - 1] * lean[d])
+      ring[d] = Math.max(ring[d - 1] + step[d] + CLEAR, ring[d - 1] * lean[d])
     }
   }
   respace()
@@ -76,11 +85,25 @@ export function organicLayout(root, visible) {
   let spread = 1, span = 0
   for (let pass = 0; pass < PASSES; pass++) {
     const R = d => ring[d] * spread
-    const half = b => Math.asin(Math.min(0.92, (b.hub + GAP * 0.5) / Math.max(1e-6, R(b.depth))))
+    // A folder's file circle has radial thickness, so it can reach the rings on
+    // either side of its own. Reserve angular space on every ring it actually
+    // touches (as the half-angle of the chord it cuts there) — otherwise a fat
+    // folder and a cousin one ring out could be left sitting on top of each
+    // other, and the rings would have to be held apart globally to prevent it.
+    const half = b => {
+      const rb = R(b.depth), reach = b.hub + GAP * 0.5
+      const out = []
+      for (let k = 0; b.depth + k <= deepest; k++) {
+        const rk = R(b.depth + k), dr = rk - rb
+        if (k && dr >= reach) break
+        out.push(Math.asin(Math.min(0.92, Math.sqrt(Math.max(0, reach * reach - dr * dr)) / Math.max(1e-6, rk))))
+      }
+      return out
+    }
     for (let i = order.length - 1; i >= 0; i--) {
       const b = order[i]
       const h = half(b)
-      if (!b.children.length) { b.lo = [-h]; b.hi = [h]; b.offsets = []; continue }
+      if (!b.children.length) { b.lo = h.map(v => -v); b.hi = h; b.offsets = []; continue }
       // rotate each sibling just past the contour of everything placed so far
       let accLo = null, accHi = null
       const offsets = []
@@ -102,8 +125,15 @@ export function organicLayout(root, visible) {
       const mid = (offsets[0] + offsets[offsets.length - 1]) / 2
       for (let k = 0; k < offsets.length; k++) offsets[k] -= mid
       b.offsets = offsets
-      b.lo = [-h, ...accLo.map(v => v - mid)]
-      b.hi = [h, ...accHi.map(v => v - mid)]
+      const lo = [-h[0]], hi = [h[0]]
+      for (let d = 1; d < Math.max(h.length, accLo.length + 1); d++) {
+        const mine = d < h.length ? h[d] : 0
+        const kid = d - 1 < accLo.length ? [accLo[d - 1] - mid, accHi[d - 1] - mid] : null
+        lo.push(kid ? Math.min(-mine, kid[0]) : -mine)
+        hi.push(kid ? Math.max(mine, kid[1]) : mine)
+      }
+      b.lo = lo
+      b.hi = hi
     }
     span = Math.max(...bodies[0].hi.map((v, d) => v - bodies[0].lo[d]))
     // how far off its parent's bearing the most-swung child of each ring sits

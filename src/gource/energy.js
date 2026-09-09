@@ -3,10 +3,16 @@ const tint = (c, a) => `rgba(${c.join(',')},${Math.max(0, a)})`
 const point = (a, b, c, t) => [(1-t)**2*a[0]+2*(1-t)*t*b[0]+t*t*c[0], (1-t)**2*a[1]+2*(1-t)*t*b[1]+t*t*c[1]]
 
 export function drawEnergyBeam(ctx, start, end, color, progress, opacity, seed) {
-  const dx = end[0]-start[0], dy = end[1]-start[1]
-  const bend = Math.sin(seed * 2.399) * 0.22
-  const control = [(start[0]+end[0])/2-dy*bend, (start[1]+end[1])/2+dx*bend]
-  const head = Math.min(1, progress / 0.45)
+  // Straight. Every beam of a commit leaves the same contributor, so as a star
+  // of straight lines they cannot cross each other at all — while a curved one
+  // that bows out and comes back to its file must cut across any shorter beam
+  // behind it. The old random sideways bend cost 8074 crossings over one
+  // repository's history, up to 199 in a single commit.
+  const control = [(start[0]+end[0])/2, (start[1]+end[1])/2]
+  // The life comes from the flight instead: heads leave together and land
+  // slightly apart, so a burst arrives as a flurry rather than a single sweep.
+  const stagger = 0.82 + ((seed * 2654435761) % 1000) / 1000 * 0.36
+  const head = Math.min(1, progress / 0.45 * stagger)
   const fade = opacity * Math.min(1, (1-progress)/0.35)
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'

@@ -111,6 +111,35 @@ function repoShape() {
   for (const p of ['docs/a.md', 'public/logo.svg', 'scripts/seed.ts', 'self-host/compose.yml']) add(p)
   return { root, visible }
 }
+/** A shallower, bushier shape: the tangent-cone rule bites here, not in repoShape. */
+function bushyShape() {
+  const root = { path: '', type: 'dir', children: new Map(), parent: null }
+  const visible = []
+  const add = p => {
+    const parts = p.split('/')
+    let node = root
+    for (let i = 0; i < parts.length; i++) {
+      const path = parts.slice(0, i + 1).join('/')
+      let ch = node.children.get(path)
+      if (!ch) {
+        ch = { path, type: i === parts.length - 1 && p.includes('.') ? 'file' : 'dir', children: new Map(), parent: node }
+        if (ch.type === 'file') ch.children = null
+        node.children.set(path, ch); visible.push(ch)
+      }
+      node = ch
+    }
+  }
+  for (const d of ['client/hooks', 'client/lib', 'components/ui', 'schemas', 'serverFunctions', 'types',
+    'server/db', 'server/lib', 'server/middleware', 'lib', 'routes/api/auth', 'routes/api/billing']) {
+    for (let i = 0; i < 5; i++) add(`src/${d}/f${i}.ts`)
+  }
+  for (const d of ['audit', 'backlinks', 'billing', 'domain', 'keywords', 'page', 'workflows']) {
+    for (let i = 0; i < 4; i++) add(`src/features/${d}/components/c${i}.tsx`)
+  }
+  for (const p of ['.github/workflows/ci.yml', 'docs/a.md', 'drizzle/meta/s0.json', 'public/logo.svg',
+    'scripts/seed.ts', 'self-host/compose.yml', '_marketing/src/routes/index.tsx', 'web/content/blog/p1.md']) add(p)
+  return { root, visible }
+}
 test('no two folder edges cross, and no edge cuts through a foreign folder', () => {
   const { root, visible } = repoShape()
   const { positions, radii } = organicLayout(root, visible)
@@ -159,4 +188,18 @@ test('branches curve with the ring, so drawing them bent cannot make them cross'
     }
   }
   assert.equal(crossings, 0, `${crossings} curved branches cross`)
+})
+
+test('a shallow, bushy tree stays crossing-free too', () => {
+  // Wide fans close to the centre are what force a ring outwards to keep its
+  // edges inside their tangent cone; without that push this shape crosses.
+  const { root, visible } = bushyShape()
+  const { positions } = organicLayout(root, visible)
+  const dirs = [root, ...visible.filter(n => n.type === 'dir')]
+  const edges = dirs.filter(n => n.parent).map(n => [positions.get(n.parent), positions.get(n)])
+  let crossings = 0
+  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+    if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) crossings++
+  }
+  assert.equal(crossings, 0, `${crossings} of ${edges.length} branches cross`)
 })
