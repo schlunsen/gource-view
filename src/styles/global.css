@@ -410,3 +410,11 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .compare-export-progress progress { width: 260px; accent-color: #64dedb; }
 .compare-export-done { margin: 10px 0 0; font: 11px var(--font-mono); color: #a4b6cb; }
 .compare-export-done a { color: #64dedb; }
+
+/* The header's repository field is the same search used in the comparison */
+.repo-search--header { flex: 1 1 200px; min-width: 200px; max-width: 36rem; }
+.repo-search--header input { flex: 1; min-width: 0; height: 40px; font-size: 13px; }
+.repo-search--header button { height: 40px; padding: 0 16px; border: 0; background: var(--color-accent, #64dedb); color: #06222b; font: 600 13px var(--font-display, inherit); border-radius: 8px; }
+.repo-search--header button:hover:not(:disabled) { filter: brightness(1.06); }
+.repo-search--header button:disabled { opacity: .55; cursor: not-allowed; }
+.repo-search--header .repo-search-results { top: 46px; width: min(520px, 90vw); }

@@ -6,7 +6,8 @@ orbit their folders, contributors fly in and beam at what they touch, and a slow
 flyover camera drifts over it all. Exports broadcast-ready MP4s with a title
 card, a contributor leaderboard and music.
 
-**[Open the app](https://schlunsen.github.io/gource-view/)** — paste a public GitHub
+**[Open the app](https://schlunsen.github.io/gource-view/)** — search GitHub from
+the header, or paste a public GitHub
 repository to clone and explore its history on your own device. Ready-to-play
 examples, GitHub trending, branch selection, saved histories, fullscreen
 playback with music and MP4 export all work on GitHub Pages — the video is
