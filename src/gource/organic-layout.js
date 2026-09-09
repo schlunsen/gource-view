@@ -34,7 +34,7 @@ function ringRadius(count) {
   return k * FILE_D
 }
 
-export function organicLayout(root, visible) {
+export function organicLayout(root, visible, shared) {
   const keep = new Set(visible)
   const dirs = [root, ...visible.filter(n => n.type === 'dir')]
   const bodies = dirs.map(n => ({
@@ -71,10 +71,12 @@ export function organicLayout(root, visible) {
   // no edge leaving it is angled more than its tangent cone allows — the rule
   // that keeps an edge from bulging across a neighbouring branch. It is
   // measured from the previous round's packing and fed back in below.
-  const ring = new Array(deepest + 1).fill(0)
-  const lean = new Array(deepest + 1).fill(1)
+  const rings = Math.max(deepest, shared ? shared.ring.length - 1 : 0)
+  const ring = shared ? shared.ring.slice() : new Array(rings + 1).fill(0)
+  const lean = shared ? shared.lean.slice() : new Array(rings + 1).fill(1)
   const respace = () => {
-    for (let d = 1; d <= deepest; d++) {
+    if (shared) return                                        // the schedule is fixed; only `spread` moves
+    for (let d = 1; d <= rings; d++) {
       ring[d] = Math.max(ring[d - 1] + step[d] + CLEAR, ring[d - 1] * lean[d])
     }
   }
@@ -143,14 +145,23 @@ export function organicLayout(root, visible) {
       for (const o of b.offsets) swing[b.depth + 1] = Math.max(swing[b.depth + 1], Math.abs(o))
     }
     let ok = span <= FULL
+    let widen = span > FULL ? span / FULL : 1
     for (let d = 1; d <= deepest; d++) {
-      // widening the ring shrinks the swing, so re-measure rather than ratchet
-      const want = Math.min(LEAN_CAP, 1 / Math.cos(Math.min(1.2, swing[d])))
-      if (Math.abs(want - lean[d]) > 5e-3) ok = false
-      lean[d] = lean[d] + (want - lean[d]) * 0.6
+      if (!shared) {
+        // widening the ring shrinks the swing, so re-measure rather than ratchet
+        const want = Math.min(LEAN_CAP, 1 / Math.cos(Math.min(1.2, swing[d])))
+        if (Math.abs(want - lean[d]) > 5e-3) ok = false
+        lean[d] = lean[d] + (want - lean[d]) * 0.6
+      }
+      // No edge may leave a ring at a wider angle than that ring's tangent cone,
+      // or it bulges across the branch beside it. The cone depends only on the
+      // ratio between two rings, so scaling the whole tree leaves it untouched
+      // while shrinking every angle — which is exactly the knob to turn.
+      const cone = Math.acos(Math.min(0.9995, ring[d - 1] / ring[d]))
+      if (swing[d] > cone) { widen = Math.max(widen, swing[d] / cone); ok = false }
     }
     if (ok) break
-    if (span > FULL) spread *= span / FULL
+    spread *= widen
     respace()
   }
 
@@ -191,5 +202,130 @@ export function organicLayout(root, visible) {
   const points = [...positions.values()]
   const minX = Math.min(...points.map(p => p[0])), maxX = Math.max(...points.map(p => p[0]))
   const minY = Math.min(...points.map(p => p[1])), maxY = Math.max(...points.map(p => p[1]))
-  return { positions, radii, center: [(minX + maxX) / 2, (minY + maxY) / 2], width: Math.max(80, maxX - minX), height: Math.max(80, maxY - minY) }
+  return {
+    positions, radii, ring, lean, spread,
+    center: [(minX + maxX) / 2, (minY + maxY) / 2],
+    width: Math.max(80, maxX - minX), height: Math.max(80, maxY - minY),
+  }
+}
+
+/**
+ * The same tree, solved at a handful of points in its history.
+ *
+ * One layout for the whole repository has to reserve, from the first frame,
+ * the room the project will only need years later — so early history plays out
+ * in a corner of a picture built for the end of the story, and the tree never
+ * visibly reorganises itself the way a real one does. Solving it afresh every
+ * frame would fix that and ruin seeking: the drawing would depend on how you
+ * got to a moment rather than which moment it is.
+ *
+ * So: solve at `count` eras, each holding the nodes born by then, and move
+ * between them. Position stays a pure function of time, so a seek and an export
+ * land on exactly the same picture as playing there.
+ *
+ * Movement is interpolated in polar form, not in x/y. Every era sorts siblings
+ * the same way and puts children further out than their parents, so sliding
+ * radius and bearing separately keeps that order intact the whole way across —
+ * where interpolating x/y would let one branch sweep through another.
+ */
+export function layoutSeries(root, visible, count = 6) {
+  const born = [...visible].sort((a, b) => a.firstTs - b.firstTs || a.path.localeCompare(b.path))
+  // One ring schedule for the whole history, taken from the finished tree, and
+  // every era placed on it at its own scale. That is what makes moving between
+  // eras safe: an era only ever scales the rings, never re-spaces them, so the
+  // ratio between two rings — and with it the tangent cone that decides how far
+  // a branch may swing — is the same in every era and at every point between
+  // two of them. Blending two angles can then never exceed a bound both ends
+  // already respect.
+  const schedule = organicLayout(root, born)
+  const solve = subset => organicLayout(root, subset, schedule)
+  const frames = [], times = []
+  const steps = Math.max(1, Math.min(count, born.length))
+  for (let k = 1; k <= steps; k++) {
+    const subset = born.slice(0, Math.ceil(born.length * k / steps))
+    const at = subset.length ? subset[subset.length - 1].firstTs : 0
+    // eras that land on the same instant are the same era
+    if (times.length && at <= times[times.length - 1]) { frames[frames.length - 1] = solve(subset); continue }
+    times.push(at); frames.push(solve(subset))
+  }
+  if (!frames.length) { times.push(0); frames.push(solve([])) }
+
+  // Folders are tracked in polar form, breadth-first so a parent is always
+  // placed before its children. A folder that did not exist yet sits on its
+  // nearest ancestor that did, so it grows out of the branch it belongs to.
+  const shown = new Set(visible)
+  const dirs = [root], seen = new Set([root])
+  for (let i = 0; i < dirs.length; i++) {
+    for (const c of dirs[i].children?.values() || []) {
+      if (c.type === 'dir' && shown.has(c) && !seen.has(c)) { seen.add(c); dirs.push(c) }
+    }
+  }
+  const track = new Map()
+  for (const n of dirs) {
+    const r = new Float64Array(frames.length), a = new Float64Array(frames.length), fr = new Float64Array(frames.length)
+    for (let k = 0; k < frames.length; k++) {
+      let node = n
+      while (node && !frames[k].positions.has(node)) node = node.parent
+      const p = frames[k].positions.get(node || root) || frames[k].center
+      r[k] = Math.hypot(p[0], p[1])
+      a[k] = Math.atan2(p[1], p[0])
+      fr[k] = frames[k].radii.get(node || root) || 0
+      // keep the bearing continuous across eras so nothing takes the long way round
+      if (k) a[k] = a[k - 1] + Math.atan2(Math.sin(a[k] - a[k - 1]), Math.cos(a[k] - a[k - 1]))
+    }
+    track.set(n, { r, a, fr })
+  }
+  // Files ride their folder: an offset, not a place of their own, so a folder
+  // that shifts while the tree rearranges takes its files with it.
+  const files = []
+  for (const n of visible) {
+    if (n.type !== 'file') continue
+    const dx = new Float64Array(frames.length), dy = new Float64Array(frames.length)
+    for (let k = 0; k < frames.length; k++) {
+      const home = frames[k].positions.get(n.parent) || frames[k].center
+      const p = frames[k].positions.get(n)
+      dx[k] = p ? p[0] - home[0] : 0
+      dy[k] = p ? p[1] - home[1] : 0
+    }
+    files.push({ n, dx, dy })
+  }
+
+  const lerp = (a, b, e) => a + (b - a) * e
+  const fill = (t, into) => {
+    let k = 0
+    while (k < times.length - 2 && t > times[k + 1]) k++
+    const span = times[k + 1] - times[k]
+    const raw = frames.length < 2 || span <= 0 ? (t >= times[times.length - 1] ? 1 : 0) : (t - times[k]) / span
+    const u = Math.max(0, Math.min(1, raw))
+    const e = u * u * (3 - 2 * u)                              // ease so eras blend rather than switch
+    const j = Math.min(k + 1, frames.length - 1)
+    const pos = into.positions, rad = into.radii
+    for (const n of dirs) {
+      const tr = track.get(n)
+      const r = lerp(tr.r[k], tr.r[j], e)
+      const a = lerp(tr.a[k], tr.a[j], e)
+      pos.set(n, [Math.cos(a) * r, Math.sin(a) * r])
+      rad.set(n, lerp(tr.fr[k], tr.fr[j], e))
+    }
+    for (const f of files) {
+      const home = pos.get(f.n.parent) || [0, 0]
+      pos.set(f.n, [home[0] + lerp(f.dx[k], f.dx[j], e), home[1] + lerp(f.dy[k], f.dy[j], e)])
+    }
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+    for (const p of pos.values()) {
+      if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]
+      if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]
+    }
+    into.center = [(x0 + x1) / 2, (y0 + y1) / 2]
+    into.width = Math.max(80, x1 - x0)
+    into.height = Math.max(80, y1 - y0)
+    return into
+  }
+  const out = { positions: new Map(), radii: new Map(), frames, times }
+  let sampledAt = NaN
+  /** The tree at time `t`. One shared object, refilled — read it, do not keep it. */
+  out.sample = t => (t === sampledAt ? out : (sampledAt = t, fill(t, out)))
+  /** The tree at time `t` in an object of its own, for anything that outlives a frame. */
+  out.snapshot = t => fill(t, { positions: new Map(), radii: new Map() })
+  return fill(times[0], out)
 }

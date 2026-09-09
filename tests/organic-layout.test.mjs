@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { organicLayout } from '../src/gource/organic-layout.js'
+import { organicLayout, layoutSeries } from '../src/gource/organic-layout.js'
 
 function fixture(folderCount, filesPerFolder) {
   const root = { path: '', type: 'dir', children: new Map() }
@@ -202,4 +202,81 @@ test('a shallow, bushy tree stays crossing-free too', () => {
     if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) crossings++
   }
   assert.equal(crossings, 0, `${crossings} of ${edges.length} branches cross`)
+})
+
+/** A tree that grows: each folder's files arrive over the span, not all at once. */
+function growingShape() {
+  const root = { path: '', type: 'dir', children: new Map(), parent: null, firstTs: 0 }
+  const visible = []
+  let clock = 0
+  const add = p => {
+    const parts = p.split('/')
+    let node = root
+    clock += 10
+    for (let i = 0; i < parts.length; i++) {
+      const path = parts.slice(0, i + 1).join('/')
+      let ch = node.children.get(path)
+      if (!ch) {
+        ch = { path, type: i === parts.length - 1 && p.includes('.') ? 'file' : 'dir', children: new Map(), parent: node, firstTs: clock }
+        if (ch.type === 'file') ch.children = null
+        node.children.set(path, ch); visible.push(ch)
+      }
+      ch.firstTs = Math.min(ch.firstTs, clock)
+      node = ch
+    }
+  }
+  for (let round = 0; round < 6; round++) {
+    for (const d of ['src/client/hooks', 'src/server/db', 'src/server/lib', 'src/features/audit',
+      'src/features/keywords', 'docs', 'drizzle/meta', '.github/workflows']) {
+      for (let i = 0; i < 3; i++) add(`${d}/r${round}f${i}.ts`)
+    }
+    if (round > 2) for (let i = 0; i < 4; i++) add(`src/features/backlinks/late${round}_${i}.ts`)
+  }
+  return { root, visible }
+}
+test('the tree rearranges as history plays, and a seek lands on the same picture', () => {
+  const { root, visible } = growingShape()
+  const series = layoutSeries(root, visible, 6)
+  const span = [visible[0].firstTs, visible[visible.length - 1].firstTs]
+  const at = f => span[0] + (span[1] - span[0]) * f
+  // sampling out of order must not change what a moment looks like
+  const first = [...series.sample(at(0.4)).positions.entries()].map(([, p]) => p.join())
+  series.sample(at(1)); series.sample(at(0)); series.sample(at(0.9))
+  const again = [...series.sample(at(0.4)).positions.entries()].map(([, p]) => p.join())
+  assert.deepEqual(again, first)
+  // it must actually move, or there was no point
+  const early = series.snapshot(at(0.15)), late = series.snapshot(at(1))
+  assert.ok(late.width > early.width * 1.2, `tree did not grow: ${early.width} -> ${late.width}`)
+  // files ride their folder rather than drifting off it
+  for (const n of visible) {
+    if (n.type !== 'file') continue
+    const g = series.snapshot(at(0.55))
+    const [x, y] = g.positions.get(n), [px, py] = g.positions.get(n.parent)
+    assert.ok(Math.hypot(x - px, y - py) <= g.radii.get(n.parent) + 2, `${n.path} left its folder`)
+  }
+})
+test('folders that have settled do not cross while the tree rearranges', () => {
+  const { root, visible } = growingShape()
+  const series = layoutSeries(root, visible, 6)
+  const span = [visible[0].firstTs, visible[visible.length - 1].firstTs]
+  let worst = 0
+  for (let s = 0; s <= 60; s++) {
+    const t = span[0] + (span[1] - span[0]) * s / 60
+    const g = series.sample(t)
+    let k = 0
+    while (k < series.times.length - 2 && t > series.times[k + 1]) k++
+    const settledBy = series.times[k]
+    const edges = []
+    for (const n of visible) {
+      if (n.type !== 'dir' || !n.parent) continue
+      if (n.firstTs > settledBy || n.parent.firstTs > settledBy) continue   // still flying out of its parent
+      edges.push([g.positions.get(n.parent), g.positions.get(n)])
+    }
+    let x = 0
+    for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+      if (crosses(edges[i][0], edges[i][1], edges[j][0], edges[j][1])) x++
+    }
+    worst = Math.max(worst, x)
+  }
+  assert.equal(worst, 0, `${worst} settled branches cross mid-rearrangement`)
 })
