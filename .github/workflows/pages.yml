@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 4 * * *'   # daily: refresh GitHub trending (and the demo repositories)
+    - cron: '17 4 * * *'   # daily: refresh GitHub trending and bake the top four histories
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,7 +26,7 @@ jobs:
         env:
           VITE_GIT_PROXY: ${{ vars.VITE_GIT_PROXY }}
         run: VITE_STATIC=1 VITE_REPO_URL="https://github.com/${{ github.repository }}" npx vite build --base="/${{ github.event.repository.name }}/"
-      - name: Bake demo repositories and music
+      - name: Bake all four featured histories and music
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/build-static.mjs dist

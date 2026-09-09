@@ -28,6 +28,10 @@ export async function startLoad(repo, options) {
   const name = parseRepository(repo), maxCommits = browserLimit(options?.maxCommits ?? DEFAULT_COMMITS)
   const idx = await demoIndex().catch(() => ({ demos: [] }))
   const demo = idx.demos.find(d => d.name.toLowerCase() === name.toLowerCase())
+  if (options?.prebuiltOnly) {
+    if (!demo) throw new Error('This preview is unavailable in the current daily build. Please try again after the next update.')
+    return { job: demo.slug, static: true }
+  }
   // Prebuilt demos load instantly. Use one when nobody asked for a specific
   // depth, or when the request matches what it was baked at; an explicit deeper
   // request ("Load more history") falls through to a real clone.
