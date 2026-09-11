@@ -18,6 +18,10 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.landing-card').length === 4 && document.querySelectorAll('.landing-status').length === 0)
   assert.deepEqual(await page.locator('.landing-card header a').allTextContents(), ['owner/project1', 'owner/project3', 'owner/project4', 'owner/project2'])
   assert.equal(await page.locator('.landing-card canvas').count(), 4)
+  // Every card links to the project's real home, in a new tab, alongside the viewer.
+  const sources = await page.locator('.landing-links a[target="_blank"]').evaluateAll(els => els.map(a => [a.href, a.rel]))
+  assert.deepEqual(sources.map(([href]) => href), ['https://github.com/owner/project1', 'https://github.com/owner/project3', 'https://github.com/owner/project4', 'https://github.com/owner/project2'])
+  assert.ok(sources.every(([, rel]) => rel.includes('noopener')), 'external links drop the opener')
   const timeline = page.getByRole('slider', { name: 'Weekly timeline' })
   await page.waitForFunction(() => Number(document.querySelector('[aria-label="Weekly timeline"]').value) > .005)
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
