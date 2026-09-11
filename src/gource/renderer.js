@@ -8,6 +8,7 @@ import { loadAvatar, avatarsSettled } from './avatars.js'
 import { buildEvents, deletedAt } from './lifecycle.js'
 import { buildPacing } from './pacing.js'
 import { buildPseudonyms, normalizePrivacy, describeHidden } from './privacy.js'
+import { createClockFade } from './clock-fade.js'
 // Gource-style renderer: transient per-commit bursts, smooth easing, motion.
 // Canvas sizing: ResizeObserver on the parent (fixes the 300×150 bug).
 
@@ -127,6 +128,7 @@ export function createGource(canvasEl, repo, options = {}) {
   const commitCount = repo.commits.length
   const BASE_SEC = Math.max(30, Math.min(300, commitCount * 3))
   const histPerSec = span / (options.duration || BASE_SEC)
+  const clockFade = createClockFade(histPerSec) // hides the clock while history outruns it
 
   const visibleSet = new Set(visible)
   // per-node colour
@@ -627,7 +629,11 @@ export function createGource(canvasEl, repo, options = {}) {
     ctx.fillStyle = 'rgba(129,147,170,1)'
     ctx.fillText(`${d.weekday} · ${done}/${totalCommits} commits`, x + 14 * ui, y + 60 * ui, w - 28 * ui)
     ctx.restore()
-    if (showClock) drawClock(Math.min(to, Math.max(from, t)), isMobile ? x + w + 10 * ui : x - 10 * ui - h, y, h, ui)
+    if (showClock && clockFade.alpha > 0.005) {
+      ctx.save(); ctx.globalAlpha *= clockFade.alpha
+      drawClock(Math.min(to, Math.max(from, t)), isMobile ? x + w + 10 * ui : x - 10 * ui - h, y, h, ui)
+      ctx.restore()
+    }
     ctx.textAlign = 'center'
   }
 
@@ -683,6 +689,7 @@ export function createGource(canvasEl, repo, options = {}) {
 
   function draw(dtWall = 0, advanceOrbit = playing) {
     wallClock += Math.min(0.1, Math.max(0, dtWall))
+    clockFade.ease(Math.min(0.1, Math.max(0, dtWall)))
     ctx.clearRect(0, 0, width, height)
     graph = series.sample(now())
     posCache = new Map(); presenceCache = new Map()
@@ -1140,7 +1147,9 @@ export function createGource(canvasEl, repo, options = {}) {
     dt = Math.max(0, Math.min(0.1, dt))
     doResize() // pick up any size changes from React
     if (playing) {
-      curTs += dt * histPerSec * speed * (autoPace ? pacing.paceAt(curTs) : 1)
+      const rate = histPerSec * speed * (autoPace ? pacing.paceAt(curTs) : 1)
+      curTs += dt * rate
+      clockFade.note(rate, dt)
       if (curTs >= to) { curTs = to; playing = false }
     }
     draw(dt)
@@ -1161,6 +1170,8 @@ export function createGource(canvasEl, repo, options = {}) {
       const dtWall = lastManualFrame == null ? 0 : Math.max(0, Math.min(0.1, delta > 0 && delta <= 0.25 ? delta : frameNow - lastManualFrame))
       const advanceOrbit = delta > 0 && delta <= 0.25
       lastCameraSeconds = clock; lastManualFrame = frameNow
+      // Only real playback informs the clock: scrubs, holds and paused frames carry no rate.
+      if (advanceOrbit && next > curTs) clockFade.note((next - curTs) / delta, delta)
       curTs = next
       animationTs = curTs + settleSeconds * histPerSec
       doResize()
@@ -1176,6 +1187,8 @@ export function createGource(canvasEl, repo, options = {}) {
     displayName,
     get privacy() { return privacy },
     get clock() { return showClock },
+    /** The clock is on but faded out because history is moving too fast to read it. */
+    get clockHidden() { return showClock && clockFade.fast },
     setClock(v) { showClock = !!v },
     setPrivacy(v) { privacy = normalizePrivacy(v) },
     get labelCount() { return lastLabelCount },
