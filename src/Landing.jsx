@@ -119,7 +119,7 @@ export default function Landing() {
     return () => { stopped = true }
   }, [attempt])
   return <main className="landing">
-    <nav className="landing-nav" aria-label="Main navigation"><a className="landing-brand" href={BASE}>✳ Gource<span>View</span></a><a className="landing-cta" href={viewer()}>Open viewer ↗</a></nav>
+    <nav className="landing-nav" aria-label="Main navigation"><a className="landing-brand" href={BASE}>✳ Gource<span>View</span></a><div className="landing-links"><a className="landing-nav-link" href={`${BASE}screensaver/`}>Screen saver</a><a className="landing-cta" href={viewer()}>Open viewer ↗</a></div></nav>
     <section className="landing-hero"><span className="eyebrow">OPEN SOURCE, IN MOTION</span><h1>Every project<br />has a story.</h1><p>See the code, the people, and the moments that make a project grow. Explore GitHub history as a living file tree.</p><a className="landing-cta" href={viewer()}>Visualize a repository ↗</a></section>
     <section aria-labelledby="weekly-title"><div className="landing-section-head"><div><span className="eyebrow">THE WEEK IN OPEN SOURCE</span><h2 id="weekly-title">Four projects catching attention.</h2><p>Ranked by stars gained this week on GitHub Trending.</p></div><div className="landing-date">Last seven days<span>{date(timestamp)} — {date(timestamp + WEEK)}</span></div></div>
       {error ? <div className="landing-feed-error" role="alert"><p>{error}</p><button onClick={() => setAttempt(n => n + 1)}>Try again</button></div> : <div className="landing-grid">{data ? data.repos.map((repo, rank) => <Preview key={repo.name} repo={{ ...repo, rank }} timestamp={timestamp} engines={engines} onSettled={onSettled} />) : Array.from({ length: 4 }, (_, i) => <div key={i} className="landing-skeleton" role="status">Finding this week’s projects…</div>)}</div>}
@@ -132,6 +132,6 @@ export default function Landing() {
       </div>}
       <p className="landing-source">{data && <>Ranking refreshed {date(data.fetchedAt / 1000)} · </>}<a href="https://github.com/trending?since=weekly" target="_blank" rel="noreferrer">Source: GitHub Trending ↗</a> · Previews use up to 3,000 commits.</p>
     </section>
-    <footer className="landing-footer"><span>GourceView · Code in motion.</span><a href={viewer()}>Explore your own project ↗</a></footer>
+    <footer className="landing-footer"><span>GourceView · Code in motion.</span><div className="landing-links"><a href={`${BASE}screensaver/`}>Mac screen saver</a><a href={viewer()}>Explore your own project ↗</a></div></footer>
   </main>
 }

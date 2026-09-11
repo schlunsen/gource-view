@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Git Visualizer — a macOS screen saver for Git history | GourceView</title>
+    <meta name="description" content="Free macOS screen saver that plays GourceView repository histories and Git City GitHub profiles full-screen. Notarized by Apple, for macOS 14 Sonoma and later." />
+    <link rel="canonical" href="https://schlunsen.github.io/gource-view/screensaver/" />
+    <meta name="theme-color" content="#0b111a" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GourceView" />
+    <meta property="og:title" content="Git Visualizer — a macOS screen saver for Git history" />
+    <meta property="og:description" content="Repository histories growing as living file trees and GitHub profiles built into 3D cities, on every idle Mac screen." />
+    <meta property="og:url" content="https://schlunsen.github.io/gource-view/screensaver/" />
+    <meta property="og:image" content="https://schlunsen.github.io/gource-view/screensaver/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Git Visualizer — a macOS screen saver for Git history" />
+    <meta name="twitter:description" content="GourceView and Git City, full-screen on every idle Mac screen." />
+    <meta name="twitter:image" content="https://schlunsen.github.io/gource-view/screensaver/og.jpg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Git Visualizer Screen Saver",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "macOS 14 or later",
+        "softwareVersion": "1.0",
+        "description": "A macOS screen saver that plays GourceView repository histories and Git City GitHub profiles full-screen.",
+        "url": "https://schlunsen.github.io/gource-view/screensaver/",
+        "downloadUrl": "https://github.com/schlunsen/gource-view/releases/download/screensaver-v1.0/Git-Visualizer-Screen-Saver.zip",
+        "screenshot": "https://schlunsen.github.io/gource-view/screensaver/og.jpg",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Rasmus Schlunsen", "url": "https://github.com/schlunsen" }
+      }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      /* GourceView palette (src/styles/global.css). */
+      :root {
+        --ink: oklch(0.15 0.018 245);
+        --stage: oklch(0.13 0.016 245);
+        --panel: oklch(0.19 0.020 245);
+        --panel2: oklch(0.25 0.024 245);
+        --line: oklch(0.34 0.030 245);
+        --ink-100: oklch(0.96 0.010 245);
+        --ink-300: oklch(0.80 0.020 245);
+        --ink-500: oklch(0.60 0.030 245);
+        --accent: oklch(0.82 0.130 195);
+        --accent-ink: oklch(0.20 0.030 200);
+        --display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      html { background: var(--ink); color-scheme: dark; }
+      body { margin: 0; background: var(--ink); color: var(--ink-100); font-family: var(--display); -webkit-font-smoothing: antialiased; }
+      a { color: inherit; }
+      a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+      img { display: block; max-width: 100%; height: auto; }
+      .page { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+      .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+      .muted { color: var(--ink-300); }
+
+      nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+      .brand { font-size: 18px; font-weight: 600; text-decoration: none; letter-spacing: -.02em; }
+      .brand span { color: var(--accent); }
+      .cta { display: inline-block; padding: 12px 20px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; text-decoration: none; }
+      .cta:hover { border-color: var(--ink-500); }
+      .cta.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+      .cta.primary:hover { filter: brightness(1.06); }
+
+      .hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: center; padding: 56px 0 72px; }
+      .hero h1 { font-size: clamp(40px, 5.6vw, 72px); line-height: 1.02; letter-spacing: -.05em; font-weight: 600; margin: 20px 0; }
+      .hero p { font-size: 18px; line-height: 1.65; color: var(--ink-300); margin: 0 0 28px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+      .hero .facts { margin: 20px 0 0; font: 12px/1.7 var(--mono); color: var(--ink-500); }
+      .shot { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--stage); box-shadow: 0 24px 80px #0008; }
+
+      section { padding: 56px 0; border-top: 1px solid var(--line); }
+      h2 { font-size: clamp(26px, 3.2vw, 38px); letter-spacing: -.035em; margin: 10px 0 14px; font-weight: 600; }
+      .lead { max-width: 640px; font-size: 16px; line-height: 1.7; color: var(--ink-300); margin: 0 0 32px; }
+
+      .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+      .card { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; overflow: hidden; }
+      .card .body { padding: 20px 22px 24px; }
+      .card h3 { margin: 6px 0 8px; font-size: 20px; letter-spacing: -.02em; }
+      .card p { margin: 0; color: var(--ink-300); line-height: 1.6; font-size: 15px; }
+
+      .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 32px; margin: 0; padding: 0; list-style: none; }
+      .features h3 { font-size: 16px; margin: 0 0 6px; letter-spacing: -.01em; }
+      .features p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-300); }
+
+      .install { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 48px; align-items: start; }
+      .steps { counter-reset: step; margin: 0; padding: 0; list-style: none; display: grid; gap: 22px; }
+      .steps li { counter-increment: step; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; line-height: 1.6; color: var(--ink-300); }
+      .steps li > span { overflow-wrap: anywhere; }
+      .steps li::before { content: counter(step); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--accent); color: var(--accent); font: 13px var(--mono); }
+      .steps strong { color: var(--ink-100); font-weight: 600; }
+      code { font: 13px var(--mono); background: var(--panel2); padding: 2px 6px; border-radius: 5px; color: var(--ink-100); }
+      /* The sheet screenshot is transparent around the controls; back it like a macOS window. */
+      .options { max-width: 400px; justify-self: center; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #ececec; max-width: min(400px, 100%); }
+
+      .faq { display: grid; gap: 12px; max-width: 780px; }
+      details { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 16px 20px; }
+      summary { cursor: pointer; font-weight: 600; font-size: 16px; }
+      details p { margin: 12px 0 2px; color: var(--ink-300); line-height: 1.65; font-size: 15px; }
+
+      footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; margin-top: 24px; padding: 24px 0 40px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-300); }
+      footer nav { padding: 0; gap: 18px; }
+
+      @media (max-width: 860px) {
+        .hero, .install { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+        .hero { padding: 32px 0 48px; }
+        .pair { grid-template-columns: 1fr; }
+        .features { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 560px) {
+        .page { padding: 0 18px; }
+        .features { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav aria-label="Main navigation">
+        <a class="brand" href="../">✳ Gource<span>View</span></a>
+        <a class="cta" href="../viewer.html">Open viewer ↗</a>
+      </nav>
+
+      <main>
+        <header class="hero">
+          <div>
+            <span class="eyebrow">macOS screen saver</span>
+            <h1>Git history on every idle screen.</h1>
+            <p>Git Visualizer turns your Mac's screen saver into GourceView and Git City: repositories growing as living file trees, and GitHub profiles built into animated 3D cities.</p>
+            <div class="actions">
+              <a class="cta primary" href="https://github.com/schlunsen/gource-view/releases/download/screensaver-v1.0/Git-Visualizer-Screen-Saver.zip">Download for macOS</a>
+              <a class="cta" href="#install">How to install</a>
+            </div>
+            <p class="facts">Version 1.0 · Free · macOS 14 Sonoma or later<br />Apple silicon and Intel · Notarized by Apple</p>
+          </div>
+          <figure class="shot" style="margin: 0">
+            <img src="./gource-flask.jpg" width="1600" height="1000" fetchpriority="high"
+                 alt="GourceView replaying the pallets/flask repository: contributors orbit a glowing file tree while new-contributor cards slide in." />
+          </figure>
+        </header>
+
+        <section aria-labelledby="two-views">
+          <span class="eyebrow">Two visualizers, one playlist</span>
+          <h2 id="two-views">A new story every minute.</h2>
+          <p class="lead">The screen saver alternates between the two, starting with a random one, and crossfades to a new repository or GitHub profile every minute. Each display gets its own shuffled playlist.</p>
+          <div class="pair">
+            <article class="card">
+              <img src="./gource-view.jpg" width="1600" height="1000" loading="lazy"
+                   alt="A repository's commit history drawn as a file tree, with author avatars and a timeline clock." />
+              <div class="body">
+                <span class="eyebrow">GourceView</span>
+                <h3>Repository history, animated</h3>
+                <p>Replays a public GitHub repository's commits as a growing file tree, with the people behind them. When the history reaches today it rewinds and plays again.</p>
+              </div>
+            </article>
+            <article class="card">
+              <img src="./city-night.jpg" width="1600" height="1000" loading="lazy"
+                   alt="Git City at night in the snow: a GitHub profile's repositories as lit-up buildings around a central plaza." />
+              <div class="body">
+                <span class="eyebrow">Git City</span>
+                <h3>A GitHub profile as a city</h3>
+                <p>Builds a 3D city from a user's public repositories and plays back their last 90 days of activity, with cinematic fly-through tours, weather, and day and night.</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section aria-labelledby="features">
+          <span class="eyebrow">Features</span>
+          <h2 id="features">Made for a screen saver.</h2>
+          <ul class="features">
+            <li><h3>Full-screen, every display</h3><p>Runs edge to edge on each screen, with the web controls hidden so only the visualization and its info panels show.</p></li>
+            <li><h3>Smooth crossfades</h3><p>The next scene loads behind the current one and fades in once it's ready, so you never see a loading page.</p></li>
+            <li><h3>Your projects</h3><p>Pick the GitHub users and repositories to show, or keep the featured ones.</p></li>
+            <li><h3>Mood controls</h3><p>Set Git City's time of day and weather, and GourceView's playback speed from 0.5× to 4×.</p></li>
+            <li><h3>Quiet</h3><p>Never plays sound. Any key or mouse movement wakes your Mac as usual.</p></li>
+            <li><h3>Signed and notarized</h3><p>Signed with a Developer ID and notarized by Apple, so macOS opens it without warnings.</p></li>
+          </ul>
+        </section>
+
+        <section id="install" aria-labelledby="install-title">
+          <div class="install">
+            <div>
+              <span class="eyebrow">Install</span>
+              <h2 id="install-title">Up and running in a minute.</h2>
+              <ol class="steps">
+                <li><span><strong>Download</strong> <a href="https://github.com/schlunsen/gource-view/releases/download/screensaver-v1.0/Git-Visualizer-Screen-Saver.zip">Git-Visualizer-Screen-Saver.zip</a> and open it to unzip <code>Git Visualizer.saver</code>.</span></li>
+                <li><span><strong>Double-click</strong> <code>Git Visualizer.saver</code>. System Settings asks whether to install it for you or for all users.</span></li>
+                <li><span><strong>Choose it</strong> in System Settings › Screen Saver, then click <strong>Options…</strong> to pick users, repositories and how often it switches.</span></li>
+              </ol>
+            </div>
+            <img class="options" src="./options.png" width="800" height="1010" loading="lazy"
+                 alt="The Options sheet: playlist, Git City users, time of day and weather, GourceView repositories and playback speed." />
+          </div>
+        </section>
+
+        <section aria-labelledby="faq">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq">Questions</h2>
+          <div class="faq">
+            <details>
+              <summary>Is it free?</summary>
+              <p>Yes. It's free to download and use.</p>
+            </details>
+            <details>
+              <summary>Does it need an internet connection?</summary>
+              <p>Yes. Both visualizers load live from GitHub Pages, and repository histories and profiles come from GitHub.</p>
+            </details>
+            <details>
+              <summary>Which Macs does it run on?</summary>
+              <p>Macs with macOS 14 Sonoma or later, on Apple silicon or Intel.</p>
+            </details>
+            <details>
+              <summary>Why isn't it on the Mac App Store?</summary>
+              <p>A screen saver has to be installed into the system's screen saver folder, and the Mac App Store only allows apps that are fully self-contained. It's distributed here instead, signed with a Developer ID and notarized by Apple.</p>
+            </details>
+            <details>
+              <summary>Can I show my own repositories?</summary>
+              <p>Yes. Open System Settings › Screen Saver, choose Git Visualizer, click Options… and type GitHub usernames and <code>owner/repo</code> names. Public repositories only.</p>
+            </details>
+            <details>
+              <summary>How do I uninstall it?</summary>
+              <p>In System Settings › Screen Saver, Control-click Git Visualizer and choose Delete. Or remove <code>~/Library/Screen Savers/Git Visualizer.saver</code>.</p>
+            </details>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>GourceView · Code in motion.</span>
+        <nav aria-label="Footer">
+          <a href="../">Trending repositories</a>
+          <a href="../viewer.html">Explore your own project ↗</a>
+          <a href="https://schlunsen.github.io/git-city/">Git City ↗</a>
+        </nav>
+      </footer>
+    </div>
+  </body>
+</html>

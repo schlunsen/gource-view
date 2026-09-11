@@ -40,3 +40,7 @@
 .landing-playback input { flex: 1; min-width: 120px; accent-color: var(--color-accent); }
 .landing-playback time { min-width: 100px; }
 .landing-links { display: flex; gap: 14px; flex-shrink: 0; }
+.landing-nav .landing-links { align-items: center; gap: 20px; }
+.landing-nav-link { font-size: 14px; color: var(--color-ink-300); }
+.landing-nav-link:hover { color: var(--color-ink-100); }
+@media (max-width: 480px) { .landing-nav-link { display: none; } }

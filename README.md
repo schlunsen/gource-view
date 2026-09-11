@@ -251,6 +251,16 @@ it in the UI and `DEFAULT_REPO` (e.g. `gitea:org/repo`) picks what loads first.
 Repositories from that instance can be typed as `gitea:owner/name` or chosen
 from the picker.
 
+## Mac screen saver
+
+**Git Visualizer** plays GourceView and [Git City](https://schlunsen.github.io/git-city/)
+full-screen as a macOS screen saver, crossfading between repositories and GitHub
+profiles. It's free, notarized by Apple, and runs on macOS 14 Sonoma or later.
+
+Download it from the [screen saver page](https://schlunsen.github.io/gource-view/screensaver/)
+or the [`screensaver-v1.0` release](https://github.com/schlunsen/gource-view/releases/tag/screensaver-v1.0).
+The page lives in `screensaver/index.html`.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Bundled music is CC BY 4.0 by Kevin MacLeod, see [server/music/LICENSE](server/music/LICENSE).
