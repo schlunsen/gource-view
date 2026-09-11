@@ -75,6 +75,10 @@ export default function App() {
   const pendingSeek = useRef(PARAMS.get('t') ? +PARAMS.get('t') : null)
   const autoCompare = useRef((PARAMS.get('vs') || '') !== '')
   const autoVideo = useRef(PARAMS.get('video') === '1') // a video link opens fullscreen playback once the history is in
+  // embed=1: shown inside another page (e.g. Git City's in-page player). The
+  // video view hides its scrubber and the host page is told when it opens,
+  // closes (Esc / Exit) or fails to load, so it can reveal or close its player.
+  const embedded = PARAMS.get('embed') === '1' && window.parent !== window
   const [showHelp, setShowHelp] = useState(false)
   const [videoMode, setVideoMode] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
@@ -83,6 +87,16 @@ export default function App() {
   useEffect(() => { musicTracks().then(setTracks).catch(() => {}) }, [])
   const openVideo = useCallback(() => { if (!repo) return; gourceRef.current?.pause(); setVideoMode(true) }, [repo])
   const closeVideo = useCallback(() => setVideoMode(false), [])
+  const videoWasOpen = useRef(false)
+  useEffect(() => {
+    if (!embedded) return
+    if (videoMode) window.parent.postMessage({ source: 'gource-view', type: 'video-open', repo }, '*')
+    else if (videoWasOpen.current) window.parent.postMessage({ source: 'gource-view', type: 'video-close', repo }, '*')
+    videoWasOpen.current = videoMode
+  }, [embedded, videoMode, repo])
+  useEffect(() => {
+    if (embedded && error) window.parent.postMessage({ source: 'gource-view', type: 'error', error: String(error) }, '*')
+  }, [embedded, error])
   const [toast, setToast] = useState(null)
   // Compact (phone) layout: the canvas is the hero; everything else lives in a bottom sheet.
   const compact = useMediaQuery(COMPACT_QUERY)
@@ -654,7 +668,7 @@ export default function App() {
       </main>
 
       {compareOpen && repo && <CompareView primary={repo} initial={compareInitial.current} privacy={privacy} maxCommits={repo.loadLimit ?? maxCommits} gitea={config?.gitea} giteaRepos={giteaRepos} onClose={() => setCompareOpen(false)} />}
-      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} />}
+      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} embed={embedded} />}
 
       {/* ── Transport ── */}
       <footer className="transport border-t border-line bg-panel px-3 py-3 sm:px-5" role="group" aria-label="Playback controls">
