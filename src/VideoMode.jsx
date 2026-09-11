@@ -184,7 +184,11 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     }
     size()
     const ro = new ResizeObserver(size); ro.observe(host.current)
-    document.fonts?.load?.(`700 32px ${FONT_SANS}`); document.fonts?.load?.(`500 16px ${FONT_MONO}`)
+    // Embedded: tell the host once the title card is really on screen (fonts
+    // loaded, first frame drawn and painted), so it can reveal the player.
+    let fontsReady = false, announced = !embed
+    Promise.all([document.fonts?.load?.(`700 32px ${FONT_SANS}`), document.fonts?.load?.(`500 16px ${FONT_MONO}`)])
+      .catch(() => {}).finally(() => { fontsReady = true })
     const total = INTRO + duration + OUTRO
     const loop = now => {
       if (disposed) return
@@ -206,6 +210,10 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       if (s.elapsed >= total && s.playing) setPlaying(false)
       const t = composition.drawFrame(Math.min(s.elapsed, total + 1), canvas)
       setPhase(p => (p === t.phase ? p : t.phase))
+      if (!announced && fontsReady) {
+        announced = true
+        requestAnimationFrame(() => { if (!disposed) window.parent.postMessage({ source: 'gource-view', type: 'video-ready' }, '*') })
+      }
       // music: fade in over 1.5 s, out over the last 3 s, paused with playback
       const a = audioRef.current
       if (a) {
@@ -219,7 +227,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     fx.resume()
     raf = requestAnimationFrame(loop)
     return () => { disposed = true; cancelAnimationFrame(raf); ro.disconnect(); renderer?.destroy(); fx.close(); fxRef.current = null }
-  }, [repo, duration, privacy, clock, restartKey])
+  }, [repo, duration, privacy, clock, restartKey, embed])
 
   // Reset only for a new track or replay, never for pause/resume.
   useEffect(() => {
