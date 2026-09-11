@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { BASE, STATIC, trending, startLoad, pollStatus, cancelJob } from './api.js'
 import { createGource } from './gource/renderer.js'
 import { weeklyLeaders, WEEK } from './landing-data.js'
+import { repoLink } from './repo-link.js'
 import './styles/landing.css'
 
 const date = ts => new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+const PLAYBACK_SECONDS = 30 // the whole week, on screen
 const viewer = name => `${BASE}viewer.html${name ? `?repo=${encodeURIComponent(name)}` : ''}`
 
 function Preview({ repo, timestamp, engines, onSettled }) {
@@ -67,7 +69,7 @@ function Preview({ repo, timestamp, engines, onSettled }) {
     <div className="landing-canvas"><canvas ref={canvas} role="img" aria-label={`${repo.name} animated file history over the last seven days`} />
       {status && <div className="landing-status" role={error ? 'alert' : 'status'}><p>{status}</p>{error && <button onClick={() => setAttempt(n => n + 1)}>Retry preview</button>}</div>}
     </div>
-    <footer><div><span>{repo.language || 'Open source'}</span><p>{repo.description || 'Explore the people and commits behind this project.'}</p></div><a href={viewer(repo.name)} aria-label={`Explore ${repo.name}`}>Explore ↗</a></footer>
+    <footer><div><span>{repo.language || 'Open source'}</span><p>{repo.description || 'Explore the people and commits behind this project.'}</p></div><div className="landing-links"><a href={repoLink({ repo: repo.name, source: 'github' })} target="_blank" rel="noopener noreferrer" aria-label={`Open ${repo.name} on GitHub`}>GitHub ↗</a><a href={viewer(repo.name)} aria-label={`Explore ${repo.name}`}>Explore ↗</a></div></footer>
   </article>
 }
 
@@ -82,14 +84,14 @@ export default function Landing() {
     settled.current.add(name); setReadyCount(settled.current.size)
   }, [])
   const ready = !!data && readyCount >= data.repos.length
-  const seek = value => { clock.current.progress = value; clock.current.seconds = value * 60; setProgress(value) }
+  const seek = value => { clock.current.progress = value; clock.current.seconds = value * PLAYBACK_SECONDS; setProgress(value) }
   useEffect(() => {
     let raf, last = null, lastUpdate = 0
     const frame = now => {
       const dt = last === null ? 0 : Math.max(0, Math.min(.1, (now - last) / 1000))
       last = now
       if (playing && ready && !document.hidden) {
-        clock.current.progress = Math.min(1, clock.current.progress + dt / 60)
+        clock.current.progress = Math.min(1, clock.current.progress + dt / PLAYBACK_SECONDS)
         clock.current.seconds += dt
         if (clock.current.progress === 1) setPlaying(false)
       }
@@ -126,7 +128,7 @@ export default function Landing() {
         <button disabled={!ready} onClick={() => { seek(0); setPlaying(true) }}>Replay week</button>
         <input type="range" aria-label="Weekly timeline" min="0" max="1" step="0.0001" value={progress} onChange={e => seek(Number(e.target.value))} />
         <time dateTime={new Date((timestamp + WEEK * progress) * 1000).toISOString()}>{date(timestamp + WEEK * progress)}</time>
-        <span>{ready ? '7 days in 60 seconds' : 'Preparing previews…'}</span>
+        <span>{ready ? `7 days in ${PLAYBACK_SECONDS} seconds` : 'Preparing previews…'}</span>
       </div>}
       <p className="landing-source">{data && <>Ranking refreshed {date(data.fetchedAt / 1000)} · </>}<a href="https://github.com/trending?since=weekly" target="_blank" rel="noreferrer">Source: GitHub Trending ↗</a> · Previews use up to 3,000 commits.</p>
     </section>

@@ -418,3 +418,13 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .repo-search--header button:hover:not(:disabled) { filter: brightness(1.06); }
 .repo-search--header button:disabled { opacity: .55; cursor: not-allowed; }
 .repo-search--header .repo-search-results { top: 46px; width: min(520px, 90vw); }
+
+/* The repository being visualized, one click from its real home. */
+.repo-source-link { display: inline-flex; align-items: center; gap: 7px; height: 40px; max-width: 280px; padding: 0 11px; border: 1px solid var(--color-line); border-radius: 8px; color: var(--color-ink-100); font: 500 11px var(--font-mono); text-decoration: none; white-space: nowrap; transition: border-color .15s, background .15s; }
+.repo-source-link:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.repo-source-link:focus-visible, .repo-details-link:focus-visible, .compare-name:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.repo-source-host { color: var(--color-ink-500); }
+.repo-source-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.repo-details-link { color: inherit; text-decoration: none; }
+.repo-details-link:hover, a.compare-name:hover { color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; }
+a.compare-name { color: inherit; text-decoration: none; }

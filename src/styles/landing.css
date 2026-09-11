@@ -39,3 +39,4 @@
 .landing-playback button:disabled { opacity: .5; cursor: wait; }
 .landing-playback input { flex: 1; min-width: 120px; accent-color: var(--color-accent); }
 .landing-playback time { min-width: 100px; }
+.landing-links { display: flex; gap: 14px; flex-shrink: 0; }

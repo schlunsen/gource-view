@@ -258,7 +258,7 @@ MIT — see [LICENSE](LICENSE). Bundled music is CC BY 4.0 by Kevin MacLeod, see
 ### Landing page and viewer
 
 The home page features the four largest weekly star gains in the GitHub Trending
-weekly feed, with synchronized playback of the last seven days in 60 seconds. Each preview opens the
+weekly feed, with synchronized playback of the last seven days in 30 seconds. Each preview opens the
 full viewer at `viewer.html`; existing `?repo=owner/repo` home-page links redirect
 there automatically. Previews use up to 3,000 commits and share pause, replay, and timeline controls. Search-based trending fallbacks are
 not presented as weekly star gains. The daily Pages build bakes only the four featured repositories. Landing previews

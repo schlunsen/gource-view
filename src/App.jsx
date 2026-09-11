@@ -11,6 +11,7 @@ import GithubToken from './GithubToken.jsx'
 import RepoSearch from './RepoSearch.jsx'
 import CompareView from './CompareView.jsx'
 import { createGource } from './gource/renderer.js'
+import { repoLink, repoHost } from './repo-link.js'
 
 const DEFAULT_REPO = 'expressjs/express'
 
@@ -286,7 +287,11 @@ export default function App() {
   }, [buildLink])
   // A video link opens straight into fullscreen playback of this repository.
   const videoLink = useCallback(() => new URL(buildLink(null, true), window.location.href).toString(), [buildLink])
-  actions.current = { syncUrl, seekTo, jumpBurst, applySpeed, toggleFlyover, togglePace, share, cyclePrivacy, openVideo, toggleClock }
+  const repoRef = useRef(repo)
+  repoRef.current = repo
+  const sourceUrl = repoLink(repo, privacy), sourceHost = repoHost(sourceUrl)
+  const openSource = useCallback(() => { const url = repoLink(repoRef.current, privacyRef.current); if (url) window.open(url, '_blank', 'noopener,noreferrer') }, [])
+  actions.current = { syncUrl, seekTo, jumpBurst, applySpeed, toggleFlyover, togglePace, share, cyclePrivacy, openVideo, toggleClock, openSource }
 
   // keyboard shortcuts (ignored while typing or with a dialog open)
   useEffect(() => {
@@ -319,6 +324,7 @@ export default function App() {
         case 'r': g.resetView(); break
         case 's': setShowStats(v => !v); break
         case 'c': a.share(); break
+        case 'g': a.openSource(); break
         default: return
       }
     }
@@ -337,7 +343,7 @@ export default function App() {
           </a>
           <span className="hidden sm:inline font-mono text-[11px] text-ink-500">CODE IN MOTION</span>
           {STATIC && <a className="github-source-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">
-            View on GitHub <span aria-hidden="true">↗</span>
+            GourceView on GitHub <span aria-hidden="true">↗</span>
           </a>}
         </div>
 
@@ -352,6 +358,12 @@ export default function App() {
           disabled={loading}
           placeholder={config?.gitea ? `Search GitHub, owner/repo or ${config.gitea.label} URL…` : 'Search GitHub, or owner/repo…'}
         />
+
+        {sourceUrl && !loading && (
+          <a className="repo-source-link" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open ${repo.repo} on ${sourceHost} (g)`} aria-label={`Open ${repo.repo} on ${sourceHost}`}>
+            <span className="repo-source-host">{sourceHost}</span><span className="repo-source-name">{repo.repo}</span><span aria-hidden="true">↗</span>
+          </a>
+        )}
 
         {config?.gitea && (
           <GiteaPicker label={config.gitea.label} repos={giteaRepos} onPick={name => { setRepoInput(`gitea:${name}`); load(`gitea:${name}`) }} />
@@ -461,7 +473,9 @@ export default function App() {
             <div className="rounded-xl bg-panel/90 border border-line px-3.5 py-2.5 backdrop-blur-sm">
               <div className="font-display font-semibold text-[13px] text-ink-100 mb-1.5 flex items-center gap-2">
                 <span className="text-accent" aria-hidden="true">●</span>
-                <span className="font-mono text-[12px] tracking-tight">{privacy === 'off' ? repo.repo : 'private repository'}</span>
+                {sourceUrl
+                  ? <a className="repo-details-link font-mono text-[12px] tracking-tight pointer-events-auto" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open on ${sourceHost}`}>{repo.repo} <span aria-hidden="true">↗</span></a>
+                  : <span className="font-mono text-[12px] tracking-tight">{privacy === 'off' ? repo.repo : 'private repository'}</span>}
               </div>
               <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-[3px] font-mono text-[11px]">
                 <dt className="text-ink-500">commits</dt><dd className="text-right text-ink-100 tnum">{repo.stats.commits}</dd>
@@ -517,6 +531,7 @@ export default function App() {
               <dt>r</dt><dd>reset view</dd>
               <dt>s</dt><dd>stats overlay</dd>
               <dt>c</dt><dd>copy share link</dd>
+              <dt>g</dt><dd>open the repository’s page</dd>
               <dt>h</dt><dd>privacy: hide names / people</dd>
               <dt>v</dt><dd>play as video (fullscreen)</dd>
               <dt>k</dt><dd>clock on / off</dd>

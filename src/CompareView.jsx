@@ -6,8 +6,9 @@ import TrendingPanel from './TrendingPanel.jsx'
 import GiteaPicker from './GiteaPicker.jsx'
 
 import { comparisonWindow, countUpTo, timeAt } from './compare-window.js'
+import { repoLink, repoHost } from './repo-link.js'
 
-const PLAYBACK_SECONDS = 60
+const PLAYBACK_SECONDS = 30
 const SPEEDS = [0.5, 1, 2, 4]
 const fmtDate = ts => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 /** Loads one repository through the ordinary browser/server path. */
@@ -217,7 +218,9 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
         {panels.map(panel => (
           <section key={panel.name} className="compare-panel">
             <div className="compare-panel-head">
-              <span className="compare-name">{panel.name}</span>
+              {repoLink(panel.data, privacy)
+                ? <a className="compare-name" href={repoLink(panel.data, privacy)} target="_blank" rel="noopener noreferrer" title={`Open on ${repoHost(repoLink(panel.data, privacy))}`}>{panel.name} <span aria-hidden="true">↗</span></a>
+                : <span className="compare-name">{privacy === 'off' ? panel.name : 'private repository'}</span>}
               {panel.data && <span className="compare-stat">{countUpTo(panel.stamps, tsFor(panel, u)).toLocaleString()} / {panel.data.stats.commits.toLocaleString()} commits · {panel.data.stats.authors} authors</span>}
               {panel.loading && <span className="compare-stat">{panel.progress?.detail || 'Loading…'}</span>}
             </div>
