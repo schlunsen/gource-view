@@ -347,7 +347,16 @@ export function createGource(canvasEl, repo, options = {}) {
   const screenX = motion(0), screenY = motion(0)
   let userCamera = false
   let view = null
+  // Compact page layouts keep the canvas free of overlays and tell the camera
+  // which part of it is actually visible (a bottom sheet may cover the rest):
+  // { top, right, bottom, left, pad }. null keeps the default framing.
+  let insets = null
   function viewport() {
+    if (insets && !options.manual) {
+      const aw = Math.max(100, width - insets.left - insets.right)
+      const ah = Math.max(100, height - insets.top - insets.bottom)
+      return { aw, ah, cx: insets.left + aw / 2, cy: insets.top + ah / 2, full: Math.min(aw / graph.width, ah / graph.height) }
+    }
     const side = options.manual ? 70 : width >= 900 ? 260 : 24
     const aw = Math.max(100, width - side - 70)
     const ah = Math.max(100, height - (options.manual ? 220 : width < 640 ? 175 : 110))
@@ -379,7 +388,7 @@ export function createGource(canvasEl, repo, options = {}) {
     }
     let scale = view.full, cx = graph.center[0], cy = graph.center[1]
     if (count) {
-      const pad = 70 // px of breathing room for labels and spawn rings
+      const pad = insets ? insets.pad : 70 // px of breathing room for labels and spawn rings
       // the near edge of a tilted plane comes closer (k > 1), keep room for it
       const near = flyover ? 1.18 : 1
       scale = Math.min((view.aw - pad * 2) / Math.max(1e-6, (x1 - x0) * near), (view.ah - pad * 2) / Math.max(1e-6, (y1 - y0) * fl.cphi * near))
@@ -402,7 +411,7 @@ export function createGource(canvasEl, repo, options = {}) {
           fcx += x * w; fcy += y * w; wsum += w
         }
         fcx /= wsum; fcy /= wsum
-        const fpad = 170
+        const fpad = insets ? insets.pad * 2.4 : 170
         let zoomScale = Math.min((view.aw - fpad * 2) / Math.max(60, (fx1 - fx0) * near), (view.ah - fpad * 2) / Math.max(60, (fy1 - fy0) * fl.cphi * near))
         zoomScale = Math.max(scale, Math.min(scale * 1.5, zoomScale))
         // Dollying in only helps when the tree is big and its dots are tiny;
@@ -472,15 +481,66 @@ export function createGource(canvasEl, repo, options = {}) {
     zoom = Math.max(0.4, Math.min(8, zoom * Math.exp(-e.deltaY * 0.001)))
     userCamera = true
   }
-  function move(e) {
+  // Touch: one finger pans (like a mouse drag), two fingers pinch-zoom about
+  // their midpoint, a tap inspects what is under it for a moment and a double
+  // tap resets the camera. Mouse and pen input take the original path.
+  const touches = new Map()
+  let pinch = null, tap = null, lastTap = null, tapTimer = 0, inspecting = false
+  function local(e) {
     const rect = canvas.getBoundingClientRect()
-    const next = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+  function pinchState() {
+    const [a, b] = [...touches.values()]
+    return { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  }
+  function move(e) {
+    const next = local(e)
+    if (touches.has(e.pointerId)) {
+      touches.set(e.pointerId, next)
+      if (tap && Math.hypot(next.x - tap.x, next.y - tap.y) > 10) tap = null
+      if (touches.size >= 2) {
+        const p = pinchState()
+        if (pinch) {
+          const f = Math.max(0.4, Math.min(8, zoom * p.d / pinch.d)) / zoom
+          // keep the point between the fingers under the fingers, and follow them
+          const ox = pinch.x - (view ? view.cx : width / 2) - panX, oy = pinch.y - (view ? view.cy : height / 2) - panY
+          panX += ox - ox * f + p.x - pinch.x
+          panY += oy - oy * f + p.y - pinch.y
+          zoom *= f; userCamera = true
+        }
+        pinch = p; pointer = null
+        return
+      }
+    }
     if (dragging && pointer) { panX += next.x - pointer.x; panY += next.y - pointer.y; userCamera = true }
     pointer = next
   }
-  function down(e) { move(e); dragging = true; canvas.setPointerCapture(e.pointerId) }
-  function up() { dragging = false }
-  function leave() { if (!dragging) pointer = null }
+  function down(e) {
+    if (e.pointerType === 'touch') {
+      clearTimeout(tapTimer); inspecting = false
+      const at = local(e)
+      touches.set(e.pointerId, at)
+      tap = touches.size === 1 ? { ...at, t: performance.now() } : null
+      pinch = touches.size >= 2 ? pinchState() : null
+    }
+    move(e); dragging = true; canvas.setPointerCapture(e.pointerId)
+  }
+  function up(e) {
+    if (e && touches.delete(e.pointerId)) {
+      pinch = null
+      if (touches.size) { pointer = null; return } // a finger is still down: it keeps panning
+      if (tap && e.type === 'pointerup' && performance.now() - tap.t < 350) {
+        if (lastTap && tap.t - lastTap.t < 350 && Math.hypot(tap.x - lastTap.x, tap.y - lastTap.y) < 30) { resetView(); lastTap = null }
+        else lastTap = tap
+        inspecting = true
+        tapTimer = setTimeout(() => { inspecting = false; if (!dragging) pointer = null }, 2500)
+      }
+      tap = null
+    }
+    dragging = false
+  }
+  function leave(e) { if (!dragging && !(e.pointerType === 'touch' && inspecting)) pointer = null }
   function resetView() { zoom = 1; panX = 0; panY = 0; userCamera = false }
   canvas.style.touchAction = 'none'
   canvas.style.cursor = 'grab'
@@ -513,8 +573,8 @@ export function createGource(canvasEl, repo, options = {}) {
     const ui = uiScale()
     const isMobile = width < 640
     const cw = Math.min(width - 28, 318 * ui), ch = 74 * ui, r = 10 * ui
-    const gapRight = options.manual ? width * 0.031 : isMobile ? 14 : 24
-    const baseBottom = options.manual ? height * 0.1 : isMobile ? 66 : 150
+    const gapRight = options.manual ? width * 0.031 : insets ? insets.right + 12 : isMobile ? 14 : 24
+    const baseBottom = options.manual ? height * 0.1 : insets ? insets.bottom + 12 : isMobile ? 66 : 150
     const travel = cw + gapRight + 24
     for (const cd of cards) {
       const dt = t - cd.showTs
@@ -597,8 +657,9 @@ export function createGource(canvasEl, repo, options = {}) {
     const d = dateParts(Math.min(to, Math.max(from, t)))
     const done = commitsBefore(commitTimes, t)
     const w = 196 * ui, h = 66 * ui, r = 10 * ui
-    const x = options.manual ? width - width * 0.031 - w : isMobile ? 14 : width - 24 - w
-    const y = options.manual ? height * 0.038 : isMobile ? 110 : 20
+    const x = options.manual ? width - width * 0.031 - w : isMobile ? 14 : width - (insets ? insets.right + 16 : 24) - w
+    // compact layouts keep the top of the canvas clear, so the scoreboard tucks into the corner
+    const y = options.manual ? height * 0.038 : insets ? 12 : isMobile ? 110 : 20
     ctx.save()
     ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
     ctx.fillStyle = rgba(C.bubbleBg, 0.86)
@@ -1182,6 +1243,10 @@ export function createGource(canvasEl, repo, options = {}) {
     camera() { return { scale: cam.scale, full: view?.full, zoom, cx: cam.cx, cy: cam.cy, userCamera, flyover, angle: orbit.value, tilt: tilt.value, renderedZoom: Math.exp(zoomMotion.value), panX: panMotionX.value, panY: panMotionY.value, graph: { w: graph.width, h: graph.height }, canvas: { width, height } } },
     probe() { return visible.filter(n => n.type === 'dir' && vstate(n).a > 0.5).map(n => { const [x, y] = nodePos(n); return { path: n.path, x, y, collapsed: lastCollapsed.has(n) } }) },
     resetView,
+    /** The viewer has panned or zoomed; the auto-framing camera waits for resetView(). */
+    get userCamera() { return userCamera },
+    /** Visible part of the canvas for compact layouts: { top, right, bottom, left, pad } in CSS px, or null. */
+    setInsets(v) { insets = v ? { top: 0, right: 0, bottom: 0, left: 0, pad: 70, ...v } : null },
     authorColor(name) { return authorColor[name] || C.dir },
     avatar(name) { return privacy === 'all' ? null : (avatarImgs.get(name) || null) },
     displayName,
@@ -1224,6 +1289,7 @@ export function createGource(canvasEl, repo, options = {}) {
     getSpeed() { return speed },
     destroy() {
       cancelAnimationFrame(raf)
+      clearTimeout(tapTimer)
       if (canvas.parentElement) ro.disconnect()
       window.removeEventListener('resize', doResize)
       canvas.removeEventListener('wheel', wheel)
