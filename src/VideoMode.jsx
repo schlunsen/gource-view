@@ -110,7 +110,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       if (!embed) localStorage.setItem('gource-video-volume', JSON.stringify(volume)) // an embed's volume is its host's choice, not yours
       localStorage.setItem('gource-video-effects', JSON.stringify(effects))
     } catch { /* Storage can be disabled. */ }
-  }, [volume, effects])
+  }, [volume, effects, embed])
   useEffect(() => () => clearTimeout(toastTimer.current), [])
   useEffect(() => {
     const previous = document.activeElement
