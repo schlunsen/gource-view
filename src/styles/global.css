@@ -428,3 +428,10 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 .repo-details-link { color: inherit; text-decoration: none; }
 .repo-details-link:hover, a.compare-name:hover { color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; }
 a.compare-name { color: inherit; text-decoration: none; }
+
+/* Git City companion links (owner + top authors) */
+.owner-city-link { display: inline-block; margin: 0 0 6px; color: var(--color-accent); text-decoration: none; }
+.owner-city-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.owner-city-link:focus-visible, .author-city-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.author-city-link { text-decoration: none; }
+.author-city-link:hover { color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; }

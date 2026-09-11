@@ -12,6 +12,7 @@ import RepoSearch from './RepoSearch.jsx'
 import CompareView from './CompareView.jsx'
 import { createGource } from './gource/renderer.js'
 import { repoLink, repoHost } from './repo-link.js'
+import { gitCityUrl, ownerOf, githubRepoOf, resolveAuthorLogins } from './git-city.js'
 
 const DEFAULT_REPO = 'expressjs/express'
 
@@ -235,6 +236,19 @@ export default function App() {
     return bins.map(n => n / peak)
   }, [repo])
   const pseudonyms = useMemo(() => buildPseudonyms(repo?.commits || []), [repo])
+  // Git City: the owner and the top authors link to their GitHub profile cities.
+  // Logins resolve lazily, only for GitHub repositories and only with privacy off.
+  const [authorLogins, setAuthorLogins] = useState(() => new Map())
+  useEffect(() => {
+    setAuthorLogins(new Map())
+    const gh = githubRepoOf(repo)
+    if (!gh || privacy !== 'off') return
+    const top = repo.stats.topAuthors.slice(0, 6).map(([name]) => ({ name, email: repo.commits.find(c => c.name === name && c.email)?.email || '' }))
+    const ctrl = new AbortController()
+    resolveAuthorLogins(gh, top, { signal: ctrl.signal }).then(m => { if (!ctrl.signal.aborted) setAuthorLogins(m) })
+    return () => ctrl.abort()
+  }, [repo, privacy])
+  const cityOwner = privacy === 'off' ? ownerOf(repo) : ''
   const played = repo ? Math.max(0, Math.min(100, (curTs - repo.stats.from) / span * 100)) : 0
 
   // bursts: activity bins well above the typical bin, merged into runs
@@ -478,6 +492,7 @@ export default function App() {
                   ? <a className="repo-details-link font-mono text-[12px] tracking-tight pointer-events-auto" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open on ${sourceHost}`}>{repo.repo} <span aria-hidden="true">↗</span></a>
                   : <span className="font-mono text-[12px] tracking-tight">{privacy === 'off' ? repo.repo : 'private repository'}</span>}
               </div>
+              {cityOwner && <a className="owner-city-link font-mono text-[11px] pointer-events-auto" href={gitCityUrl(cityOwner)} target="_blank" rel="noopener noreferrer" title={`Every public repository of ${cityOwner}, as a city`}>🏙 {cityOwner}&apos;s Git City ↗</a>}
               <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-[3px] font-mono text-[11px]">
                 <dt className="text-ink-500">commits</dt><dd className="text-right text-ink-100 tnum">{repo.stats.commits}</dd>
                 <dt className="text-ink-500">authors</dt><dd className="text-right text-ink-100 tnum">{repo.stats.authors}</dd>
@@ -493,7 +508,9 @@ export default function App() {
                 <div className="font-mono text-[10px] uppercase tracking-wide text-ink-500 mb-1.5">top authors</div>
                 {repo.stats.topAuthors.slice(0, 6).map(([name, n]) => (
                   <div key={name} className="author-row flex justify-between gap-3 font-mono text-[11px] leading-relaxed">
-                    <span className="text-ink-300 truncate">{privacy === 'all' ? pseudonyms.get(name) || 'Contributor' : name}</span>
+                    {authorLogins.get(name)
+                      ? <a className="author-city-link text-ink-300 truncate pointer-events-auto" href={gitCityUrl(authorLogins.get(name))} target="_blank" rel="noopener noreferrer" title={`See ${authorLogins.get(name)}'s Git City`}>{name} <span aria-hidden="true">🏙</span></a>
+                      : <span className="text-ink-300 truncate">{privacy === 'all' ? pseudonyms.get(name) || 'Contributor' : name}</span>}
                     <span className="text-ink-500 tnum shrink-0">{n}</span>
                   </div>
                 ))}
