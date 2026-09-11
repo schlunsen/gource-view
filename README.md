@@ -258,7 +258,7 @@ full-screen as a macOS screen saver, crossfading between repositories and GitHub
 profiles. It's free, notarized by Apple, and runs on macOS 14 Sonoma or later.
 
 Download it from the [screen saver page](https://schlunsen.github.io/gource-view/screensaver/)
-or the [`screensaver-v1.0` release](https://github.com/schlunsen/gource-view/releases/tag/screensaver-v1.0).
+or the [`screensaver-v1.1` release](https://github.com/schlunsen/gource-view/releases/tag/screensaver-v1.1).
 The page lives in `screensaver/index.html`.
 
 ## Licence
