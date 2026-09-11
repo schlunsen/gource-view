@@ -435,3 +435,74 @@ a.compare-name { color: inherit; text-decoration: none; }
 .owner-city-link:focus-visible, .author-city-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .author-city-link { text-decoration: none; }
 .author-city-link:hover { color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Compact viewer: phones in portrait and landscape ──────────────────────
+   The canvas is the hero. One-row header (logo + search), a slim transport
+   (play, scrubber, date, speed, ⋯), and a bottom sheet for everything else. */
+.is-compact .app-header {
+  flex-wrap: nowrap; gap: 10px;
+  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+}
+.is-compact .app-header > * { width: auto; }
+.is-compact .app-header .github-source-link { display: none; }
+.is-compact .app-header > .repo-search--header { flex: 1; min-width: 0; }
+.is-compact .repo-search input { min-width: 0; font-size: 16px; } /* 16px: no iOS zoom on focus */
+.is-compact .transport {
+  padding: 6px max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+.is-compact .activity-header { display: none; }
+.is-compact .activity-chart { height: 14px; margin: 0 0 6px; gap: 1px; }
+.is-compact .transport > .flex { flex-wrap: nowrap; gap: 10px; }
+.is-compact .transport > .flex > .flex-1 { min-width: 0; }
+.m-speed, .m-more {
+  flex-shrink: 0; min-width: 44px; height: 44px; padding: 0 8px; border-radius: 10px; cursor: pointer;
+  background: var(--color-panel2); color: var(--color-ink-100); font: 12px var(--font-mono);
+}
+.m-more { font-size: 20px; line-height: 1; }
+.m-more[aria-expanded="true"] { color: var(--color-accent); }
+.m-speed:disabled, .m-more:disabled { opacity: .4; }
+@media (max-height: 500px) {
+  .is-compact .activity-chart { display: none; }
+  .is-compact .app-header { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: 6px; }
+  .is-compact .transport { padding-top: 4px; }
+}
+
+.m-sheet-backdrop { position: fixed; inset: 0; z-index: 60; background: #03091359; }
+.m-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; display: flex; flex-direction: column;
+  max-height: min(72dvh, 640px); padding-bottom: env(safe-area-inset-bottom); outline: none;
+  background: #101824fa; border-top: 1px solid #33455b; border-radius: 18px 18px 0 0; box-shadow: 0 -18px 40px #0008;
+  animation: m-sheet-in .22s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes m-sheet-in { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .m-sheet { animation: none; } }
+.m-sheet-handle { width: 40px; height: 4px; margin: 8px auto 2px; border-radius: 2px; background: #7389a2; opacity: .5; }
+.m-sheet-top { display: flex; align-items: center; gap: 8px; padding: 4px 6px 8px 12px; border-bottom: 1px solid #253040; }
+.m-sheet-tabs { display: flex; flex: 1; gap: 4px; }
+.m-sheet-tabs button { min-height: 40px; padding: 0 14px; border-radius: 999px; color: #a4b6cb; font: 12px var(--font-mono); cursor: pointer; }
+.m-sheet-tabs button.is-active { background: #1c333f; color: var(--color-accent); }
+.m-sheet-close { width: 44px; height: 44px; font-size: 24px; color: #a4b6cb; cursor: pointer; }
+.m-sheet-body { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding: 14px 16px 18px; overscroll-behavior: contain; }
+.m-sheet-body section h3 { margin: 0 0 8px; }
+.m-sheet-empty { color: #91a2b8; font-size: 13px; }
+.m-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.m-tools > button, .m-tools > [role=group] > button, .m-tools > a, .m-tools > select { min-height: 44px; }
+.m-tools > button, .m-tools > [role=group] > button { padding: 0 12px; border-radius: 8px; background: #172231; font: 12px var(--font-mono); }
+.m-tools [role=group] { display: flex; gap: 4px; }
+.m-tools [aria-label="Zoom out"], .m-tools [aria-label="Zoom in"], .m-tools .stats-toggle { display: none; } /* pinch zooms; no overlay to toggle */
+.m-tools .trending-button, .m-tools .export-button, .m-tools .repo-source-link { min-height: 44px; }
+.m-sheet-body .author-card { max-height: none; }
+.m-sheet-body .author-row { align-items: center; min-height: 40px; font-size: 13px; }
+.m-sheet-body .repo-description { display: block; -webkit-line-clamp: unset; }
+/* popovers anchored to the desktop header flow inline inside the sheet */
+.m-sheet .trending-panel, .m-sheet .discovery-panel, .m-sheet .github-token-dialog, .m-sheet .gitea-panel {
+  position: static; width: auto; max-height: none; margin-top: 10px;
+}
+.m-sheet .repo-discovery { background: none; border: 0; }
+.m-sheet .browser-history-bar { padding: 0; background: none; border: 0; }
+/* The compact viewer is exactly one screen: no desktop minimum on the stage,
+   and the page never scrolls or rubber-bands underneath the canvas. */
+.gource-app.is-compact { height: 100dvh; min-height: 0; overflow: hidden; }
+.is-compact .visual-stage { min-height: 0; }
+html:has(.is-compact), body:has(.is-compact) { overflow: hidden; overscroll-behavior: none; }
+.is-compact .app-header, .is-compact .transport { touch-action: manipulation; }

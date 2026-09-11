@@ -13,6 +13,7 @@ import CompareView from './CompareView.jsx'
 import { createGource } from './gource/renderer.js'
 import { repoLink, repoHost } from './repo-link.js'
 import { gitCityUrl, ownerOf, githubRepoOf, resolveAuthorLogins } from './git-city.js'
+import { COMPACT_QUERY, useMediaQuery } from './use-media-query.js'
 
 const DEFAULT_REPO = 'expressjs/express'
 
@@ -83,6 +84,10 @@ export default function App() {
   const openVideo = useCallback(() => { if (!repo) return; gourceRef.current?.pause(); setVideoMode(true) }, [repo])
   const closeVideo = useCallback(() => setVideoMode(false), [])
   const [toast, setToast] = useState(null)
+  // Compact (phone) layout: the canvas is the hero; everything else lives in a bottom sheet.
+  const compact = useMediaQuery(COMPACT_QUERY)
+  const [sheet, setSheet] = useState(null) // null | 'repo' | 'view' | 'explore'
+  const sheetRef = useRef(null), moreRef = useRef(null)
   useEffect(() => {
     if (!toast) return
     const timer = setTimeout(() => setToast(null), 2200)
@@ -317,7 +322,7 @@ export default function App() {
       if (document.querySelector('.video-mode')) return
       const a = actions.current, g = gourceRef.current
       if (e.key === '?') { setShowHelp(v => !v); return }
-      if (e.key === 'Escape') { setShowHelp(false); return }
+      if (e.key === 'Escape') { setShowHelp(false); setSheet(null); return }
       if (!g) return
       switch (e.key) {
         case ' ': e.preventDefault(); g.toggle(); break
@@ -347,8 +352,176 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Compact layout: frame the tree tighter and keep it above the open sheet.
+  useEffect(() => {
+    const g = gourceRef.current
+    if (!g?.setInsets) return
+    if (!compact) { g.setInsets(null); return }
+    const apply = () => {
+      const stage = canvasRef.current?.getBoundingClientRect()
+      const panel = sheetRef.current?.getBoundingClientRect()
+      g.setInsets({ pad: 28, bottom: stage && panel ? Math.max(0, stage.bottom - panel.top) : 0 })
+    }
+    apply()
+    window.addEventListener('resize', apply)
+    return () => window.removeEventListener('resize', apply)
+  }, [compact, sheet, repo, loading])
+  // The sheet takes focus when it opens and hands it back to the ⋯ button when it closes.
+  const sheetWasOpen = useRef(false)
+  useEffect(() => {
+    if (sheet && !sheetWasOpen.current) sheetRef.current?.focus()
+    if (!sheet && sheetWasOpen.current) moreRef.current?.focus()
+    sheetWasOpen.current = !!sheet
+  }, [sheet])
+  useEffect(() => { if (!compact) setSheet(null) }, [compact])
+
+  // Shared pieces: the desktop layout places them in the header / overlays / transport,
+  // the compact layout gathers them in one bottom sheet.
+  const headerTools = (
+    <>
+        {sourceUrl && !loading && (
+          <a className="repo-source-link" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open ${repo.repo} on ${sourceHost} (g)`} aria-label={`Open ${repo.repo} on ${sourceHost}`}>
+            <span className="repo-source-host">{sourceHost}</span><span className="repo-source-name">{repo.repo}</span><span aria-hidden="true">↗</span>
+          </a>
+        )}
+
+        {config?.gitea && (
+          <GiteaPicker label={config.gitea.label} repos={giteaRepos} onPick={name => { setSheet(null); setRepoInput(`gitea:${name}`); load(`gitea:${name}`) }} />
+        )}
+
+        <select
+          value={maxCommits}
+          onChange={(e) => setMaxCommits(+e.target.value)}
+          aria-label="Max commits to load"
+          title="Max commits to load"
+          className="rounded-lg bg-ink border border-line font-mono text-[11px] text-ink-300 px-2 transition-colors duration-150"
+          style={{ height: 40 }}
+        >
+          <option value={300}>300 commits</option>
+          <option value={1000}>1 000 commits</option>
+          <option value={1500}>1 500 commits</option>
+          <option value={3000}>3 000 commits</option>
+          {!STATIC && <option value={0}>All (slow)</option>}
+        </select>
+
+        {repo?.refs?.length > 1 && (
+          <select
+            value={repo.ref}
+            onChange={(e) => { const b = e.target.value; refRef.current = b === repo.defaultRef ? '' : b; load(repo.repo, b); setSheet(null) }}
+            aria-label="Branch"
+            title="Branch to visualize"
+            className="rounded-lg bg-ink border border-line font-mono text-[11px] text-ink-300 px-2 max-w-[160px] transition-colors duration-150"
+            style={{ height: 40 }}
+          >
+            {repo.refs.map(r => <option key={r} value={r}>{r === repo.defaultRef ? `${r} · default` : r}</option>)}
+          </select>
+        )}
+
+        <button type="button" className="export-button" disabled={!repo || loading} title="Compare this project with others on one clock" onClick={() => { setSheet(null); setCompareOpen(true) }}>⇄ Compare</button>
+
+        <ExportVideo repo={repo} privacy={privacy} clock={clock} staticDemo={STATIC} repoUrl={REPO_URL} />
+
+        <TrendingPanel staticDemo={STATIC} onPick={name => { setSheet(null); setRepoInput(name); load(name, '') }} />
+    </>
+  )
+  const historyBar = STATIC ? (
+<div className="browser-history-bar">
+        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser?.source === 'api' ? `History from the GitHub API · ${repo.browser.reason}` : repo?.browser?.source === 'blobless' ? `History from a partial clone · ${repo.browser.reason}` : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a> or the <a href="https://docs.github.com/rest" target="_blank" rel="noreferrer">GitHub API</a></span>{repo?.browser?.rateLimited && <span className="browser-rate-note" role="status"> · GitHub's rate limit stopped this at {repo.stats.commits} commits{repo.browser.tokenUsed ? '' : ' — add a GitHub token for 5,000 requests an hour'}</span>}</span>
+        <div>
+          <GithubToken />
+          {repo && <button type="button" disabled={loading} onClick={() => load(repo.repo, refRef.current, { refresh: true })}>Refresh history</button>}
+          {repo && (repo.prebuilt || repo.browser?.hasMore) && repo.loadLimit < 3000 && <button type="button" disabled={loading} onClick={() => { const n = [300, 1000, 1500, 3000].find(n => n > repo.loadLimit); setMaxCommits(n); load(repo.repo, refRef.current, { maxCommits: n }) }}>Load more history</button>}
+          <button type="button" disabled={loading} onClick={async () => { try { await clearHistories(); setToast('Saved histories cleared') } catch { setToast('Could not clear browser storage') } }}>Clear saved histories</button>
+        </div>
+      </div>
+  ) : null
+  const repoInfo = repo && !loading ? (
+    <>
+            <div className="rounded-xl bg-panel/90 border border-line px-3.5 py-2.5 backdrop-blur-sm">
+              <div className="font-display font-semibold text-[13px] text-ink-100 mb-1.5 flex items-center gap-2">
+                <span className="text-accent" aria-hidden="true">●</span>
+                {sourceUrl
+                  ? <a className="repo-details-link font-mono text-[12px] tracking-tight pointer-events-auto" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open on ${sourceHost}`}>{repo.repo} <span aria-hidden="true">↗</span></a>
+                  : <span className="font-mono text-[12px] tracking-tight">{privacy === 'off' ? repo.repo : 'private repository'}</span>}
+              </div>
+              {cityOwner && <a className="owner-city-link font-mono text-[11px] pointer-events-auto" href={gitCityUrl(cityOwner)} target="_blank" rel="noopener noreferrer" title={`Every public repository of ${cityOwner}, as a city`}>🏙 {cityOwner}&apos;s Git City ↗</a>}
+              <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-[3px] font-mono text-[11px]">
+                <dt className="text-ink-500">commits</dt><dd className="text-right text-ink-100 tnum">{repo.stats.commits}</dd>
+                <dt className="text-ink-500">authors</dt><dd className="text-right text-ink-100 tnum">{repo.stats.authors}</dd>
+                <dt className="text-ink-500">lines</dt><dd className="text-right text-ink-100 tnum">{repo.browser?.linesUnavailable ? '—' : repo.stats.loc.toLocaleString()}</dd>
+                <dt className="text-ink-500">span</dt><dd className="text-right text-ink-300 tnum">{fmtDate(repo.stats.from)} → {fmtDate(repo.stats.to)}</dd>
+              </dl>
+              {!!repo.browser?.countsOmitted && <p className="repo-count-note" title="Large or complex text diffs are omitted from line totals; their file activity is still shown.">{repo.browser.countsOmitted} large diffs excluded from lines.</p>}
+              {repo.browser?.linesUnavailable && <p className="repo-count-note" title="This repository was too large to download in full, so file contents were skipped. Every commit, file and contributor is exact; only line counts need the contents.">Line counts unavailable · file contents not downloaded.</p>}
+              {privacy === 'off' && repo.description && <p className="repo-description" title={repo.description}>{repo.description}</p>}
+            </div>
+            {repo.stats.topAuthors.length > 0 && (
+              <div className="author-card rounded-xl bg-panel/90 border border-line px-3.5 py-2.5 backdrop-blur-sm max-h-44 overflow-y-auto">
+                <div className="font-mono text-[10px] uppercase tracking-wide text-ink-500 mb-1.5">top authors</div>
+                {repo.stats.topAuthors.slice(0, 6).map(([name, n]) => (
+                  <div key={name} className="author-row flex justify-between gap-3 font-mono text-[11px] leading-relaxed">
+                    {authorLogins.get(name)
+                      ? <a className="author-city-link text-ink-300 truncate pointer-events-auto" href={gitCityUrl(authorLogins.get(name))} target="_blank" rel="noopener noreferrer" title={`See ${authorLogins.get(name)}'s Git City`}>{name} <span aria-hidden="true">🏙</span></a>
+                      : <span className="text-ink-300 truncate">{privacy === 'all' ? pseudonyms.get(name) || 'Contributor' : name}</span>}
+                    <span className="text-ink-500 tnum shrink-0">{n}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+    </>
+  ) : null
+  const viewTools = (
+    <>
+            <button aria-label="Zoom out" onClick={() => gourceRef.current?.zoomBy(0.8)} className="text-accent px-1">−</button>
+            <button aria-label="Zoom in" onClick={() => gourceRef.current?.zoomBy(1.25)} className="text-accent px-1">+</button>
+            <button onClick={() => gourceRef.current?.resetView()} className="text-accent">Reset view</button>
+            <button aria-pressed={flyover} onClick={toggleFlyover} className="text-accent">Flyover {flyover ? 'on' : 'off'}</button>
+            <button onClick={() => { setSheet(null); openVideo() }} disabled={!repo || loading} className="text-accent" title="Play the export composition fullscreen with music (v)">▶ Video</button>
+            <button aria-pressed={clock} onClick={toggleClock} title={clock && clockHidden ? 'Clock on — hidden while history moves faster than a day per second; slow down to see it (k)' : 'Show or hide the clock (k)'} className={clock ? 'text-accent' : 'text-ink-500'}>Clock {clock ? (clockHidden ? 'auto' : 'on') : 'off'}</button>
+            <button onClick={share} className="text-accent">Share</button>
+            <button aria-pressed={privacy !== 'off'} onClick={cyclePrivacy} title="Hide file/folder names (and contributors) for closed-source demos" className={privacy === 'off' ? 'text-accent' : 'text-warn'}>{PRIVACY_LABELS[privacy]}</button>
+            <button aria-label="Keyboard shortcuts" aria-pressed={showHelp} onClick={() => { setSheet(null); setShowHelp(v => !v) }} className="text-accent">?</button>
+    </>
+  )
+  const transportExtras = (
+    <>
+          <div className="flex items-center gap-1" role="group" aria-label="Bursts">
+            <button aria-label="Previous burst" disabled={!repo || loading} onClick={() => jumpBurst(-1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">«</button>
+            <button aria-label="Next burst" disabled={!repo || loading} onClick={() => jumpBurst(1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">»</button>
+          </div>
+
+          <div className="flex items-center gap-1" role="group" aria-label="Playback speed">
+            {SPEEDS.map(s => (
+              <button key={s}
+                onClick={() => applySpeed(s)}
+                aria-pressed={speed === s}
+                className={`px-2.5 py-1.5 rounded-md font-mono text-[11px] font-medium transition-colors duration-150 ${speed === s ? 'bg-accent text-accent-ink' : 'bg-panel2 text-ink-300 hover:text-ink-100'}`}>
+                {s}×
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={togglePace}
+            aria-pressed={pace}
+            title="Run 4× faster through quiet stretches"
+            className={`px-3 py-1.5 rounded-md font-mono text-[11px] transition-colors duration-150 ${pace ? 'bg-panel2 text-accent' : 'bg-panel2 text-ink-500'}`}
+          >
+            auto-pace
+          </button>
+
+          <button
+            onClick={() => setShowStats(v => !v)}
+            aria-pressed={showStats}
+            className="stats-toggle px-3 py-1.5 rounded-md font-mono text-[11px] transition-colors duration-150 bg-panel2 text-ink-300 hover:text-ink-100"
+          >
+            stats
+          </button>
+    </>
+  )
+
   return (
-    <div className="gource-app flex flex-col h-full min-h-dvh bg-ink text-ink-100 font-display">
+    <div className={`gource-app ${compact ? 'is-compact' : ''} flex flex-col h-full min-h-dvh bg-ink text-ink-100 font-display`}>
       {/* ── Header ── */}
       <header className="app-header flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 border-b border-line bg-panel">
         <div className="flex items-baseline gap-2 shrink-0">
@@ -374,62 +547,12 @@ export default function App() {
           placeholder={config?.gitea ? `Search GitHub, owner/repo or ${config.gitea.label} URL…` : 'Search GitHub, or owner/repo…'}
         />
 
-        {sourceUrl && !loading && (
-          <a className="repo-source-link" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open ${repo.repo} on ${sourceHost} (g)`} aria-label={`Open ${repo.repo} on ${sourceHost}`}>
-            <span className="repo-source-host">{sourceHost}</span><span className="repo-source-name">{repo.repo}</span><span aria-hidden="true">↗</span>
-          </a>
-        )}
-
-        {config?.gitea && (
-          <GiteaPicker label={config.gitea.label} repos={giteaRepos} onPick={name => { setRepoInput(`gitea:${name}`); load(`gitea:${name}`) }} />
-        )}
-
-        <select
-          value={maxCommits}
-          onChange={(e) => setMaxCommits(+e.target.value)}
-          aria-label="Max commits to load"
-          title="Max commits to load"
-          className="rounded-lg bg-ink border border-line font-mono text-[11px] text-ink-300 px-2 transition-colors duration-150"
-          style={{ height: 40 }}
-        >
-          <option value={300}>300 commits</option>
-          <option value={1000}>1 000 commits</option>
-          <option value={1500}>1 500 commits</option>
-          <option value={3000}>3 000 commits</option>
-          {!STATIC && <option value={0}>All (slow)</option>}
-        </select>
-
-        {repo?.refs?.length > 1 && (
-          <select
-            value={repo.ref}
-            onChange={(e) => { const b = e.target.value; refRef.current = b === repo.defaultRef ? '' : b; load(repo.repo, b) }}
-            aria-label="Branch"
-            title="Branch to visualize"
-            className="rounded-lg bg-ink border border-line font-mono text-[11px] text-ink-300 px-2 max-w-[160px] transition-colors duration-150"
-            style={{ height: 40 }}
-          >
-            {repo.refs.map(r => <option key={r} value={r}>{r === repo.defaultRef ? `${r} · default` : r}</option>)}
-          </select>
-        )}
-
-        <button type="button" className="export-button" disabled={!repo || loading} title="Compare this project with others on one clock" onClick={() => setCompareOpen(true)}>⇄ Compare</button>
-
-        <ExportVideo repo={repo} privacy={privacy} clock={clock} staticDemo={STATIC} repoUrl={REPO_URL} />
-
-        <TrendingPanel staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name, '') }} />
+        {!compact && headerTools}
 
       </header>
-      <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />
+      {!compact && <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setRepoInput(name); load(name) }} />}
 
-      {STATIC && <div className="browser-history-bar">
-        <span>{repo?.browser?.cached ? 'Saved history · on this device' : repo?.browser?.source === 'api' ? `History from the GitHub API · ${repo.browser.reason}` : repo?.browser?.source === 'blobless' ? `History from a partial clone · ${repo.browser.reason}` : repo?.browser ? 'History processed on your device' : 'Public GitHub repositories · ready-to-play examples'}<span className="browser-relay-note"> · Downloads via <a href="https://github.com/isomorphic-git/cors-proxy" target="_blank" rel="noreferrer">Git relay</a> or the <a href="https://docs.github.com/rest" target="_blank" rel="noreferrer">GitHub API</a></span>{repo?.browser?.rateLimited && <span className="browser-rate-note" role="status"> · GitHub's rate limit stopped this at {repo.stats.commits} commits{repo.browser.tokenUsed ? '' : ' — add a GitHub token for 5,000 requests an hour'}</span>}</span>
-        <div>
-          <GithubToken />
-          {repo && <button type="button" disabled={loading} onClick={() => load(repo.repo, refRef.current, { refresh: true })}>Refresh history</button>}
-          {repo && (repo.prebuilt || repo.browser?.hasMore) && repo.loadLimit < 3000 && <button type="button" disabled={loading} onClick={() => { const n = [300, 1000, 1500, 3000].find(n => n > repo.loadLimit); setMaxCommits(n); load(repo.repo, refRef.current, { maxCommits: n }) }}>Load more history</button>}
-          <button type="button" disabled={loading} onClick={async () => { try { await clearHistories(); setToast('Saved histories cleared') } catch { setToast('Could not clear browser storage') } }}>Clear saved histories</button>
-        </div>
-      </div>}
+      {!compact && historyBar}
 
       {/* ── Stage ── */}
       <main className="visual-stage relative flex-1 min-h-0 bg-stage overflow-hidden">
@@ -474,7 +597,7 @@ export default function App() {
 
         {!repo && !loading && !error && <div className="empty-stage"><span className="eyebrow">EVERY REPOSITORY HAS A STORY</span><h2>Watch yours unfold.</h2><p>Paste a repository above, or explore an example to see code come to life.</p><button type="button" className="recovery-button" onClick={() => { const d = document.querySelector('.repo-discovery'); if (d) d.open = true }}>Explore examples</button></div>}
 
-        {repo && !loading && (
+        {!compact && repo && !loading && (
           <div className="scene-heading pointer-events-none">
             <span className="eyebrow">REPOSITORY EXPLORER</span>
             <h2>{privacy === 'off' ? repo.repo.split('/').pop() : 'private repository'}</h2>
@@ -483,53 +606,15 @@ export default function App() {
         )}
 
         {/* Stats overlay */}
-        {repo && !loading && (
+        {!compact && repoInfo && (
           <div className={`repo-details absolute top-3 left-3 space-y-2 pointer-events-none transition-opacity duration-200 ${showStats ? 'opacity-100' : 'hidden'}`}>
-            <div className="rounded-xl bg-panel/90 border border-line px-3.5 py-2.5 backdrop-blur-sm">
-              <div className="font-display font-semibold text-[13px] text-ink-100 mb-1.5 flex items-center gap-2">
-                <span className="text-accent" aria-hidden="true">●</span>
-                {sourceUrl
-                  ? <a className="repo-details-link font-mono text-[12px] tracking-tight pointer-events-auto" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`Open on ${sourceHost}`}>{repo.repo} <span aria-hidden="true">↗</span></a>
-                  : <span className="font-mono text-[12px] tracking-tight">{privacy === 'off' ? repo.repo : 'private repository'}</span>}
-              </div>
-              {cityOwner && <a className="owner-city-link font-mono text-[11px] pointer-events-auto" href={gitCityUrl(cityOwner)} target="_blank" rel="noopener noreferrer" title={`Every public repository of ${cityOwner}, as a city`}>🏙 {cityOwner}&apos;s Git City ↗</a>}
-              <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-[3px] font-mono text-[11px]">
-                <dt className="text-ink-500">commits</dt><dd className="text-right text-ink-100 tnum">{repo.stats.commits}</dd>
-                <dt className="text-ink-500">authors</dt><dd className="text-right text-ink-100 tnum">{repo.stats.authors}</dd>
-                <dt className="text-ink-500">lines</dt><dd className="text-right text-ink-100 tnum">{repo.browser?.linesUnavailable ? '—' : repo.stats.loc.toLocaleString()}</dd>
-                <dt className="text-ink-500">span</dt><dd className="text-right text-ink-300 tnum">{fmtDate(repo.stats.from)} → {fmtDate(repo.stats.to)}</dd>
-              </dl>
-              {!!repo.browser?.countsOmitted && <p className="repo-count-note" title="Large or complex text diffs are omitted from line totals; their file activity is still shown.">{repo.browser.countsOmitted} large diffs excluded from lines.</p>}
-              {repo.browser?.linesUnavailable && <p className="repo-count-note" title="This repository was too large to download in full, so file contents were skipped. Every commit, file and contributor is exact; only line counts need the contents.">Line counts unavailable · file contents not downloaded.</p>}
-              {privacy === 'off' && repo.description && <p className="repo-description" title={repo.description}>{repo.description}</p>}
-            </div>
-            {repo.stats.topAuthors.length > 0 && (
-              <div className="author-card rounded-xl bg-panel/90 border border-line px-3.5 py-2.5 backdrop-blur-sm max-h-44 overflow-y-auto">
-                <div className="font-mono text-[10px] uppercase tracking-wide text-ink-500 mb-1.5">top authors</div>
-                {repo.stats.topAuthors.slice(0, 6).map(([name, n]) => (
-                  <div key={name} className="author-row flex justify-between gap-3 font-mono text-[11px] leading-relaxed">
-                    {authorLogins.get(name)
-                      ? <a className="author-city-link text-ink-300 truncate pointer-events-auto" href={gitCityUrl(authorLogins.get(name))} target="_blank" rel="noopener noreferrer" title={`See ${authorLogins.get(name)}'s Git City`}>{name} <span aria-hidden="true">🏙</span></a>
-                      : <span className="text-ink-300 truncate">{privacy === 'all' ? pseudonyms.get(name) || 'Contributor' : name}</span>}
-                    <span className="text-ink-500 tnum shrink-0">{n}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {repoInfo}
           </div>
         )}
 
-        {repo && !loading && (
+        {!compact && repo && !loading && (
           <div className="view-tools absolute bottom-3 left-3 flex items-center gap-3 rounded-lg bg-panel/90 px-3 py-2 font-mono text-[11px] text-ink-300">
-            <button aria-label="Zoom out" onClick={() => gourceRef.current?.zoomBy(0.8)} className="text-accent px-1">−</button>
-            <button aria-label="Zoom in" onClick={() => gourceRef.current?.zoomBy(1.25)} className="text-accent px-1">+</button>
-            <button onClick={() => gourceRef.current?.resetView()} className="text-accent">Reset view</button>
-            <button aria-pressed={flyover} onClick={toggleFlyover} className="text-accent">Flyover {flyover ? 'on' : 'off'}</button>
-            <button onClick={openVideo} disabled={!repo || loading} className="text-accent" title="Play the export composition fullscreen with music (v)">▶ Video</button>
-            <button aria-pressed={clock} onClick={toggleClock} title={clock && clockHidden ? 'Clock on — hidden while history moves faster than a day per second; slow down to see it (k)' : 'Show or hide the clock (k)'} className={clock ? 'text-accent' : 'text-ink-500'}>Clock {clock ? (clockHidden ? 'auto' : 'on') : 'off'}</button>
-            <button onClick={share} className="text-accent">Share</button>
-            <button aria-pressed={privacy !== 'off'} onClick={cyclePrivacy} title="Hide file/folder names (and contributors) for closed-source demos" className={privacy === 'off' ? 'text-accent' : 'text-warn'}>{PRIVACY_LABELS[privacy]}</button>
-            <button aria-label="Keyboard shortcuts" aria-pressed={showHelp} onClick={() => setShowHelp(v => !v)} className="text-accent">?</button>
+            {viewTools}
             <span className="hidden sm:inline">Scroll to zoom · drag to pan · hover to inspect</span>
           </div>
         )}
@@ -558,7 +643,7 @@ export default function App() {
           </div>
         )}
         {/* Legend */}
-        {repo && !loading && (
+        {!compact && repo && !loading && (
           <div className="file-legend absolute bottom-3 right-3 hidden sm:flex flex-col gap-1 rounded-xl bg-panel/85 border border-line px-3 py-2 backdrop-blur-sm font-mono text-[10px] text-ink-500">
             <LegendSwatch color={[255,160,58]} label="source" />
             <LegendSwatch color={[58,190,255]} label="data / markup" />
@@ -604,40 +689,47 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-1" role="group" aria-label="Bursts">
-            <button aria-label="Previous burst" disabled={!repo || loading} onClick={() => jumpBurst(-1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">«</button>
-            <button aria-label="Next burst" disabled={!repo || loading} onClick={() => jumpBurst(1)} className="px-2 py-1.5 rounded-md font-mono text-[11px] bg-panel2 text-ink-300 hover:text-ink-100 disabled:opacity-40">»</button>
-          </div>
-
-          <div className="flex items-center gap-1" role="group" aria-label="Playback speed">
-            {SPEEDS.map(s => (
-              <button key={s}
-                onClick={() => applySpeed(s)}
-                aria-pressed={speed === s}
-                className={`px-2.5 py-1.5 rounded-md font-mono text-[11px] font-medium transition-colors duration-150 ${speed === s ? 'bg-accent text-accent-ink' : 'bg-panel2 text-ink-300 hover:text-ink-100'}`}>
-                {s}×
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={togglePace}
-            aria-pressed={pace}
-            title="Run 4× faster through quiet stretches"
-            className={`px-3 py-1.5 rounded-md font-mono text-[11px] transition-colors duration-150 ${pace ? 'bg-panel2 text-accent' : 'bg-panel2 text-ink-500'}`}
-          >
-            auto-pace
-          </button>
-
-          <button
-            onClick={() => setShowStats(v => !v)}
-            aria-pressed={showStats}
-            className="px-3 py-1.5 rounded-md font-mono text-[11px] transition-colors duration-150 bg-panel2 text-ink-300 hover:text-ink-100"
-          >
-            stats
-          </button>
+          {compact ? (
+            <>
+              <button type="button" className="m-speed" onClick={() => applySpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])} disabled={!repo || loading} aria-label={`Playback speed ${speed}×, tap to change`}>{speed}×</button>
+              <button type="button" ref={moreRef} className="m-more" onClick={() => setSheet(v => v ? null : 'repo')} aria-haspopup="dialog" aria-expanded={!!sheet} aria-label="Repository, view and explore">⋯</button>
+            </>
+          ) : transportExtras}
         </div>
       </footer>
+      {compact && sheet && (
+        <>
+          <div className="m-sheet-backdrop" onClick={() => setSheet(null)} aria-hidden="true" />
+          <div className="m-sheet" role="dialog" aria-modal="true" aria-label="Repository, view and explore" ref={sheetRef} tabIndex={-1}>
+            <div className="m-sheet-handle" aria-hidden="true" />
+            <div className="m-sheet-top">
+              <div className="m-sheet-tabs" role="tablist">
+                {[['repo', 'Repo'], ['view', 'View'], ['explore', 'Explore']].map(([k, label]) => (
+                  <button key={k} type="button" role="tab" aria-selected={sheet === k} className={sheet === k ? 'is-active' : ''} onClick={() => setSheet(k)}>{label}</button>
+                ))}
+              </div>
+              <button type="button" className="m-sheet-close" aria-label="Close" onClick={() => setSheet(null)}>×</button>
+            </div>
+            <div className="m-sheet-body" role="tabpanel">
+              {sheet === 'repo' && (repoInfo || <p className="m-sheet-empty">Load a repository to see its stats and the people behind it.</p>)}
+              {sheet === 'view' && (
+                <>
+                  {repo && !loading && <section><h3 className="eyebrow">VIEW</h3><div className="m-tools">{viewTools}</div></section>}
+                  <section><h3 className="eyebrow">PLAYBACK</h3><div className="m-tools">{transportExtras}</div></section>
+                  <section><h3 className="eyebrow">REPOSITORY</h3><div className="m-tools">{headerTools}</div></section>
+                  {historyBar && <section><h3 className="eyebrow">HISTORY</h3>{historyBar}</section>}
+                </>
+              )}
+              {sheet === 'explore' && (
+                <>
+                  <RepoDiscovery suggestions={SUGGESTIONS} staticDemo={STATIC} onPick={name => { setSheet(null); setRepoInput(name); load(name) }} />
+                  {STATIC && <a className="github-source-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">GourceView on GitHub <span aria-hidden="true">↗</span></a>}
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
