@@ -19,7 +19,7 @@ async function open(viewport) {
   await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'example/cards', gitea: null } }))
   await page.route('**/api/load', r => r.fulfill({ json: { job: 'test' } }))
   await page.route('**/api/status/test', r => r.fulfill({ json: { status: 'done', result } }))
-  await page.goto('http://127.0.0.1:5173')
+  await page.goto('http://127.0.0.1:5173/viewer.html')
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
   return page
 }
