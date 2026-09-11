@@ -97,6 +97,10 @@ export default function App() {
   useEffect(() => {
     if (embedded && error) window.parent.postMessage({ source: 'gource-view', type: 'error', error: String(error) }, '*')
   }, [embedded, error])
+  // ...and how far a long history load has got, so the host can show progress.
+  useEffect(() => {
+    if (embedded && progress) window.parent.postMessage({ source: 'gource-view', type: 'progress', pct: Math.round(progress.pct ?? 0), detail: String(progress.detail || '') }, '*')
+  }, [embedded, progress])
   const [toast, setToast] = useState(null)
   // Compact (phone) layout: the canvas is the hero; everything else lives in a bottom sheet.
   const compact = useMediaQuery(COMPACT_QUERY)
