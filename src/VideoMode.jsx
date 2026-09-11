@@ -44,7 +44,7 @@ function makeEffects() {
  * Fullscreen "play as video": the export composition (title card → paced
  * history → leaderboard) driven live, with a music bed and subtle effects.
  */
-export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink }) {
+export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink, embed = false }) {
   const host = useRef(null), canvasRef = useRef(null), audioRef = useRef(null)
   const [duration, setDuration] = useState(30)
   const total = INTRO + duration + OUTRO
@@ -84,7 +84,17 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     setMusic(ids[(ids.indexOf(music) + dir + ids.length) % ids.length])
   }
   const [effects, setEffects] = useState(() => preference('gource-video-effects', true) !== false)
-  const [playing, setPlaying] = useState(true)
+  // Embedded players wait on the title card until the host page has revealed
+  // them (it posts { source: 'git-city', type: 'play' }); 4 s fallback.
+  const [playing, setPlaying] = useState(!embed)
+  useEffect(() => {
+    if (!embed) return
+    const start = () => setPlaying(true)
+    const onMessage = e => { if (e.source === window.parent && e.data?.type === 'play') start() }
+    window.addEventListener('message', onMessage)
+    const fallback = setTimeout(start, 4000)
+    return () => { window.removeEventListener('message', onMessage); clearTimeout(fallback) }
+  }, [embed])
   const [phase, setPhase] = useState('intro')
   const [controlsVisible, setControlsVisible] = useState(true)
   const [restartKey, setRestartKey] = useState(0)
@@ -105,12 +115,14 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
 
   // fullscreen on entry, back out on exit
   useEffect(() => {
+    // Embedded players stay in their frame: no fullscreen, so leaving it can't close the video.
+    if (embed) return
     const el = host.current
     el?.requestFullscreen?.().catch(() => {})
     const onFs = () => { if (!document.fullscreenElement) onClose() }
     document.addEventListener('fullscreenchange', onFs)
     return () => { document.removeEventListener('fullscreenchange', onFs); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}) }
-  }, [onClose])
+  }, [onClose, embed])
 
   // auto-hiding controls
   useEffect(() => {
@@ -227,11 +239,11 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       {music !== 'none' && <audio ref={audioRef} src={musicFileUrl(music)} loop preload="auto" onError={() => setAudioFailed(true)} />}
       {toast && <div className="video-toast" role="status">{toast}</div>}
       <div className={`video-controls ${controlsVisible || !playing || audioBlocked || audioFailed || phase === 'end' ? 'is-visible' : ''}`} onClick={e => e.stopPropagation()} onMouseEnter={() => setControlsVisible(true)}>
-        <div className="video-timeline">
+        {!embed && <div className="video-timeline">
           <span className="video-phase">{phase === 'intro' ? 'Opening' : phase === 'history' ? 'History' : 'Leaderboard'}</span>
           <input type="range" aria-label="Playback position" aria-valuetext={`${timecode(elapsed)} of ${timecode(total)}`} min="0" max={total} step="0.1" value={elapsed} onChange={e => seek(+e.target.value)} />
           <span className="video-time">{timecode(elapsed)} <span>/ {timecode(total)}</span></span>
-        </div>
+        </div>}
         <div className="video-control-row">
         <button type="button" onClick={togglePlayback} aria-label={playing ? 'Pause' : 'Play'} className="video-play">{playing ? '❚❚' : '▶'}</button>
         <button type="button" onClick={() => { setRestartKey(k => k + 1); setPlaying(true) }}>↺ Replay</button>
