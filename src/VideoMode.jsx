@@ -49,7 +49,11 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
   const [duration, setDuration] = useState(30)
   const total = INTRO + duration + OUTRO
   const [elapsed, setElapsed] = useState(0)
+  // ?music=<track id>&volume=<0-100> (e.g. from an embedding page) win over the saved preferences.
+  const urlParams = new URLSearchParams(window.location.search)
+  const urlVolume = urlParams.get('volume'), urlMusic = urlParams.get('music')
   const [volume, setVolume] = useState(() => {
+    if (urlVolume !== null && Number.isFinite(+urlVolume)) return Math.max(0, Math.min(100, +urlVolume))
     const saved = preference('gource-video-volume', 30)
     return typeof saved === 'number' && Number.isFinite(saved) ? Math.max(0, Math.min(100, saved)) : 30
   })
@@ -69,7 +73,8 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     })
   }
   const remembered = (() => { try { return localStorage.getItem('gource-video-music') } catch { return null } })()
-  const [music, setMusicState] = useState(remembered && (remembered === 'none' || tracks.some(t => t.id === remembered)) ? remembered : (tracks[0]?.id || 'none'))
+  const known = id => id && (id === 'none' || tracks.some(t => t.id === id))
+  const [music, setMusicState] = useState(known(urlMusic) ? urlMusic : known(remembered) ? remembered : (tracks[0]?.id || 'none'))
   const [toast, setToast] = useState('')
   const toastTimer = useRef(null)
   const setMusic = id => {
@@ -102,7 +107,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
   state.current.playing = playing; state.current.effects = effects; state.current.volume = volume / 100
   useEffect(() => {
     try {
-      localStorage.setItem('gource-video-volume', JSON.stringify(volume))
+      if (!embed) localStorage.setItem('gource-video-volume', JSON.stringify(volume)) // an embed's volume is its host's choice, not yours
       localStorage.setItem('gource-video-effects', JSON.stringify(effects))
     } catch { /* Storage can be disabled. */ }
   }, [volume, effects])
