@@ -66,6 +66,7 @@ export default function App() {
   const [pace, setPace] = useState(PARAMS.get('pace') !== '0')
   const [privacy, setPrivacyState] = useState(normalizePrivacy(PARAMS.get('privacy')))
   const [clock, setClockState] = useState(PARAMS.get('clock') !== '0')
+  const [clockHidden, setClockHidden] = useState(false) // on, but faded out at high speed
   const clockRef = useRef(PARAMS.get('clock') !== '0')
   const privacyRef = useRef(normalizePrivacy(PARAMS.get('privacy')))
   const paceRef = useRef(PARAMS.get('pace') !== '0')
@@ -147,7 +148,7 @@ export default function App() {
             g.setClock(clockRef.current)
             gourceRef.current = g
             g.onTick = (t, p) => {
-              setCurTs(t); setPlaying(p)
+              setCurTs(t); setPlaying(p); setClockHidden(g.clockHidden)
               if (lastPlaying.current && !p) actions.current.syncUrl?.(t) // paused: freeze the moment in the URL
               lastPlaying.current = p
             }
@@ -508,7 +509,7 @@ export default function App() {
             <button onClick={() => gourceRef.current?.resetView()} className="text-accent">Reset view</button>
             <button aria-pressed={flyover} onClick={toggleFlyover} className="text-accent">Flyover {flyover ? 'on' : 'off'}</button>
             <button onClick={openVideo} disabled={!repo || loading} className="text-accent" title="Play the export composition fullscreen with music (v)">▶ Video</button>
-            <button aria-pressed={clock} onClick={toggleClock} title="Show or hide the clock (k)" className={clock ? 'text-accent' : 'text-ink-500'}>Clock {clock ? 'on' : 'off'}</button>
+            <button aria-pressed={clock} onClick={toggleClock} title={clock && clockHidden ? 'Clock on — hidden while history moves faster than a day per second; slow down to see it (k)' : 'Show or hide the clock (k)'} className={clock ? 'text-accent' : 'text-ink-500'}>Clock {clock ? (clockHidden ? 'auto' : 'on') : 'off'}</button>
             <button onClick={share} className="text-accent">Share</button>
             <button aria-pressed={privacy !== 'off'} onClick={cyclePrivacy} title="Hide file/folder names (and contributors) for closed-source demos" className={privacy === 'off' ? 'text-accent' : 'text-warn'}>{PRIVACY_LABELS[privacy]}</button>
             <button aria-label="Keyboard shortcuts" aria-pressed={showHelp} onClick={() => setShowHelp(v => !v)} className="text-accent">?</button>
@@ -534,7 +535,7 @@ export default function App() {
               <dt>g</dt><dd>open the repository’s page</dd>
               <dt>h</dt><dd>privacy: hide names / people</dd>
               <dt>v</dt><dd>play as video (fullscreen)</dd>
-              <dt>k</dt><dd>clock on / off</dd>
+              <dt>k</dt><dd>clock on / off (hides itself at high speed)</dd>
               <dt>?</dt><dd>this panel</dd>
             </dl>
           </div>

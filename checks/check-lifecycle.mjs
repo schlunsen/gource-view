@@ -16,7 +16,7 @@ const result = { repo: 'example/lifecycle', commits, stats: { from, to, commits:
 await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'example/lifecycle', gitea: null } }))
 await page.route('**/api/load', r => r.fulfill({ json: { job: 'test' } }))
 await page.route('**/api/status/test', r => r.fulfill({ json: { status: 'done', result } }))
-await page.goto('http://127.0.0.1:5173')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
 const setSlider = v => page.getByRole('slider').evaluate((el, v) => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, String(v)); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) }, v)
 const folders = async () => (await page.evaluate(() => window.__gource.probe())).map(d => d.path)

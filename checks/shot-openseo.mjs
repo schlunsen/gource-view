@@ -9,7 +9,7 @@ const errors = []; page.on('pageerror', e => errors.push(e.message))
 await page.route('**/api/config', r => r.fulfill({ json: { defaultRepo: 'every-app/open-seo', gitea: null } }))
 await page.route('**/api/load', r => r.fulfill({ json: { job: 'test' } }))
 await page.route('**/api/status/test', r => r.fulfill({ json: { status: 'done', result } }))
-await page.goto('http://127.0.0.1:5173')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click().catch(() => {})
 const setSlider = v => page.getByRole('slider').first().evaluate((el, v) => { const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; s.call(el, String(v)); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })) }, v)
 const { from, to } = result.stats

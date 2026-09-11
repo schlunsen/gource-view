@@ -8,7 +8,7 @@ const commits=Array.from({length:100},(_,i)=>({hash:String(i),ts:from+i*(to-from
 const result={repo:'example/project',commits,stats:{from,to,commits:100,authors:4,loc:5000,topAuthors:[['Developer 0',25]]}}
 await page.route('**/api/load',r=>r.fulfill({json:{job:'test'}}))
 await page.route('**/api/status/test',r=>r.fulfill({json:{status:'done',result}}))
-await page.goto('http://127.0.0.1:5173')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button',{name:'Pause',exact:true}).click()
 await page.getByRole('slider').focus(); await page.keyboard.press('End'); await page.waitForTimeout(100); assert.equal(await page.getByRole('slider').inputValue(), String(to))
 await page.waitForTimeout(500)

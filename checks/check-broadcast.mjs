@@ -27,7 +27,7 @@ const route = async page => {
 // live playback: actors flying + director camera
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 await route(page)
-await page.goto('http://127.0.0.1:5173')
+await page.goto('http://127.0.0.1:5173/viewer.html')
 await page.getByRole('button', { name: 'Pause', exact: true }).click()
 await page.getByRole('button', { name: '2×', exact: true }).click()
 await page.getByRole('button', { name: 'Play', exact: true }).click()
