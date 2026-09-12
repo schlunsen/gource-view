@@ -44,7 +44,7 @@ function makeEffects() {
  * Fullscreen "play as video": the export composition (title card → paced
  * history → leaderboard) driven live, with a music bed and subtle effects.
  */
-export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink, embed = false }) {
+export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink, embed = false, chrome = true }) {
   const host = useRef(null), canvasRef = useRef(null), audioRef = useRef(null)
   const [duration, setDuration] = useState(30)
   const total = INTRO + duration + OUTRO
@@ -113,10 +113,13 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
   }, [volume, effects, embed])
   useEffect(() => () => clearTimeout(toastTimer.current), [])
   useEffect(() => {
+    // A chrome-less player has nothing to operate, so it never takes the caret:
+    // inside an iframe that would pull keyboard focus away from the host page.
+    if (!chrome) return
     const previous = document.activeElement
     host.current?.focus()
     return () => previous?.focus?.()
-  }, [])
+  }, [chrome])
 
   // fullscreen on entry, back out on exit
   useEffect(() => {
@@ -131,12 +134,13 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
 
   // auto-hiding controls
   useEffect(() => {
+    if (!chrome) return
     let timer
     const show = () => { setControlsVisible(true); clearTimeout(timer); timer = setTimeout(() => setControlsVisible(false), 2500) }
     show()
     window.addEventListener('mousemove', show); window.addEventListener('touchstart', show)
     return () => { clearTimeout(timer); window.removeEventListener('mousemove', show); window.removeEventListener('touchstart', show) }
-  }, [])
+  }, [chrome])
 
   // Let native selects, sliders and buttons keep their own keyboard behavior.
   useEffect(() => {
@@ -162,9 +166,10 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       }
       e.preventDefault()
     }
+    if (!chrome) return undefined // the host page keeps its own shortcuts
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, music, tracks, total]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onClose, music, tracks, total, chrome]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // the render loop: one renderer + composition per (repo, duration, privacy, restart)
   useEffect(() => {
@@ -247,11 +252,13 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
 
 
   return (
-    <div ref={host} className="video-mode" role="dialog" aria-modal="true" aria-label="Video mode" tabIndex={-1} data-phase={phase} onClick={e => { if (e.target === host.current || e.target === canvasRef.current) togglePlayback() }}>
+    <div ref={host} className={`video-mode${chrome ? '' : ' is-chromeless'}`} role={chrome ? 'dialog' : 'presentation'} aria-modal={chrome ? 'true' : undefined} aria-label="Video mode" tabIndex={chrome ? -1 : undefined} data-phase={phase} onClick={e => { if (chrome && (e.target === host.current || e.target === canvasRef.current)) togglePlayback() }}>
       <canvas ref={canvasRef} className="video-canvas" aria-label="Video playback" />
       {music !== 'none' && <audio ref={audioRef} src={musicFileUrl(music)} loop preload="auto" onError={() => setAudioFailed(true)} />}
       {toast && <div className="video-toast" role="status">{toast}</div>}
-      <div className={`video-controls ${controlsVisible || !playing || audioBlocked || audioFailed || phase === 'end' ? 'is-visible' : ''}`} onClick={e => e.stopPropagation()} onMouseEnter={() => setControlsVisible(true)}>
+      {/* chrome=0: the picture only — for a small embedded panel that has its own controls. */}
+      {!chrome && audioBlocked && <button type="button" className="video-audio-notice video-audio-solo" onClick={playAudio}>Enable audio</button>}
+      {chrome && <div className={`video-controls ${controlsVisible || !playing || audioBlocked || audioFailed || phase === 'end' ? 'is-visible' : ''}`} onClick={e => e.stopPropagation()} onMouseEnter={() => setControlsVisible(true)}>
         {!embed && <div className="video-timeline">
           <span className="video-phase">{phase === 'intro' ? 'Opening' : phase === 'history' ? 'History' : 'Leaderboard'}</span>
           <input type="range" aria-label="Playback position" aria-valuetext={`${timecode(elapsed)} of ${timecode(total)}`} min="0" max={total} step="0.1" value={elapsed} onChange={e => seek(+e.target.value)} />
@@ -278,7 +285,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
         </div>
         {audioBlocked && <button type="button" className="video-audio-notice" onClick={playAudio}>Enable audio</button>}
         {audioFailed && <span className="video-audio-notice" role="status">Track unavailable — try another track.</span>}
-      </div>
+      </div>}
     </div>
   )
 }

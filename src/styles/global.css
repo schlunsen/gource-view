@@ -239,6 +239,11 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .video-mode { position: fixed; inset: 0; z-index: 100; background: #0a101b; display: flex; align-items: center; justify-content: center; cursor: default; }
 .video-canvas { display: block; box-shadow: 0 0 80px #0008; }
+/* ?chrome=0: the picture alone, for a small panel on a host page that has its own
+   controls. Nothing is clickable, so the host's own pointer and keys still reach it. */
+.video-mode.is-chromeless { cursor: inherit; }
+.video-mode.is-chromeless .video-canvas { box-shadow: none; }
+.video-audio-solo { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: #101a29ed; border: 1px solid #7389a244; border-radius: 999px; padding: 6px 12px; font: 11px var(--font-mono); cursor: pointer; }
 .video-controls { position: absolute; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(12px); display: flex; flex-direction: column; gap: 12px; width: min(960px, calc(100% - 32px)); padding: 14px 18px; border-radius: 20px; background: #101a29ed; backdrop-filter: blur(20px); box-shadow: 0 16px 60px #0006; border: 1px solid #7389a244; color: #a4b6cb; font: 11px var(--font-mono); opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; }
 .video-control-row { display: flex; width: 100%; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; }
 .video-timeline { display: flex; align-items: center; width: 100%; gap: 12px; }

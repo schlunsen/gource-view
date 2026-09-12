@@ -129,6 +129,25 @@ this renderer.
   form `?repo=a/b&vs=c/d` opens the comparison directly.
 - Press `?` for every keyboard shortcut.
 
+## Embedding
+
+An `<iframe>` can carry the viewer into another page. `?embed=1` tells it that it
+is embedded: no fullscreen (so leaving fullscreen cannot close the video), the
+host's `?volume=` and `?music=` win over saved preferences, and the frame talks to
+its host with `postMessage` — `video-open`, `video-ready` (the first frame is on
+screen), `progress` (`pct`, `detail`) while a large history loads, `video-close`
+and `error`. The host starts playback with `{ source: 'git-city', type: 'play' }`.
+
+`?chrome=0` (alias `?controls=0`) plays the picture and nothing else: no control
+bar, no keyboard shortcuts, no focus grab, and no click-to-pause. Use it for a
+small panel that already has its own controls — without it an embedded player
+takes keyboard focus inside its frame and the host page stops seeing key presses.
+A typical embed:
+
+```
+viewer.html?repo=owner/name&max=3000&video=1&embed=1&chrome=0&music=none
+```
+
 ## Export video
 
 *Export video* renders an MP4 on the server: 720p / 1080p / 4K, landscape 16:9
