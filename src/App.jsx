@@ -79,6 +79,10 @@ export default function App() {
   // video view hides its scrubber and the host page is told when it opens,
   // closes (Esc / Exit) or fails to load, so it can reveal or close its player.
   const embedded = PARAMS.get('embed') === '1' && window.parent !== window
+  // ?chrome=0 (alias ?controls=0): play the picture and nothing else — no control
+  // bar, no keyboard capture, no focus steal. For a small panel on a host page
+  // that supplies its own controls, such as a card in an embedding site.
+  const videoChrome = PARAMS.get('chrome') !== '0' && PARAMS.get('controls') !== '0'
   const [showHelp, setShowHelp] = useState(false)
   const [videoMode, setVideoMode] = useState(false)
   const [compareOpen, setCompareOpen] = useState(false)
@@ -672,7 +676,7 @@ export default function App() {
       </main>
 
       {compareOpen && repo && <CompareView primary={repo} initial={compareInitial.current} privacy={privacy} maxCommits={repo.loadLimit ?? maxCommits} gitea={config?.gitea} giteaRepos={giteaRepos} onClose={() => setCompareOpen(false)} />}
-      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} embed={embedded} />}
+      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} embed={embedded} chrome={videoChrome} />}
 
       {/* ── Transport ── */}
       <footer className="transport border-t border-line bg-panel px-3 py-3 sm:px-5" role="group" aria-label="Playback controls">
