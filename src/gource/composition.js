@@ -18,6 +18,27 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
   const repoLabel = () => (config.privacy && config.privacy !== 'off') ? (config.title || 'Private repository') : data.repo
   const roundRect = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath() }
 
+  // The title card and the leaderboard are laid out in absolute pixels tuned
+  // for 1920x1080 -- row heights, bar widths, avatar radii, the lot. That was
+  // invisible while the logical canvas was always 1920x1080. Once it started
+  // following the displayed size (so small embeds stay readable), those numbers
+  // stopped fitting: at 806x454 the leaderboard's bar width came out negative
+  // and six 112px rows were drawn into 454px of height, one over another.
+  //
+  // Rather than make several dozen constants responsive, the two cards draw in
+  // the space they were designed for and that space is scaled to fit. Big
+  // canvases are pixel-identical to before; small ones get the same
+  // composition, smaller. The chrome around them is deliberately left alone --
+  // it is the part that had to grow.
+  const DESIGN = () => (H > W ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 })
+  function inDesignSpace(draw) {
+    const d = DESIGN(), s = Math.min(W / d.w, H / d.h)
+    ctx.save()
+    ctx.translate((W - d.w * s) / 2, (H - d.h * s) / 2)
+    ctx.scale(s, s)
+    try { draw(d.w, d.h) } finally { ctx.restore() }
+  }
+
   function background() {
     ctx.globalCompositeOperation = 'destination-over'
     const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7)
@@ -54,7 +75,8 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
   }
 
   // Title card: hold, then dissolve into the first frame of history.
-  function introCard(p) {
+  const introCard = p => inDesignSpace((W, H) => introCardAt(p, W, H))
+  function introCardAt(p, W, H) {
     const dissolve = p > 0.72 ? clamp01((p - 0.72) / 0.28) : 0
     ctx.globalAlpha = 1 - dissolve
     const portrait = H > W, x = portrait ? 90 : 200, base = portrait ? H * 0.46 : 580, big = portrait ? 64 : 84, small = portrait ? 18 : 22
@@ -80,7 +102,8 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
   }
 
   // Closing leaderboard, sports-broadcast style: rows slide in one after another.
-  function outroCard(p) {
+  const outroCard = p => inDesignSpace((W, H) => outroCardAt(p, W, H))
+  function outroCardAt(p, W, H) {
     const portrait = H > W, x0 = portrait ? 80 : 200, rowW = W - x0 - (portrait ? 80 : 200), top = 300, rowH = 112
     const dim = easeOut(p / 0.2)
     ctx.fillStyle = `rgba(10,16,27,${0.82 * dim})`; ctx.fillRect(0, 0, W, H)
