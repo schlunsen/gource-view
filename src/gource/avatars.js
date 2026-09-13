@@ -8,9 +8,21 @@ async function sha256Hex(text) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+// Addresses that can never have a Gravatar. GitHub mints the noreply ones for
+// anybody who hides their e-mail, so they are the commonest author address in
+// modern history and every one of them was a guaranteed miss. The rest are what
+// git invents when it has nothing: a local hostname, or literally "(none)".
+//
+// Worth skipping rather than letting them 404: ?d=404 is how this file detects
+// "no avatar, draw initials instead", but a browser prints a failed image load
+// to the console whatever onerror does with it. Not asking is the only way to
+// not be told.
+const NO_GRAVATAR = /@(users\.noreply\.github\.com|localhost|.*\.local|\(none\)|example\.com|invalid)$/
+
 export function loadAvatar(email, size = 96) {
   const key = String(email || '').trim().toLowerCase()
   if (!key || !key.includes('@')) return Promise.resolve(null)
+  if (NO_GRAVATAR.test(key)) return Promise.resolve(null)
   if (cache.has(key)) return cache.get(key)
   const p = (async () => {
     if (typeof crypto === 'undefined' || !crypto.subtle) return null
