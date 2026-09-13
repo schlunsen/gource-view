@@ -239,6 +239,10 @@ input[type="range"].timeline:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .video-mode { position: fixed; inset: 0; z-index: 100; background: #0a101b; display: flex; align-items: center; justify-content: center; cursor: default; }
 .video-canvas { display: block; box-shadow: 0 0 80px #0008; }
+/* The light edition: the stage behind the canvas has to be paper too, or the
+   composition sits in a black surround and the whole point is lost. */
+.video-mode[data-theme="light"] { background: #f4ecdb; }
+.video-mode[data-theme="light"] .video-canvas { box-shadow: 0 0 60px rgba(90, 78, 58, .22); }
 /* ?chrome=0: the picture alone, for a small panel on a host page that has its own
    controls. Nothing is clickable, so the host's own pointer and keys still reach it. */
 .video-mode.is-chromeless { cursor: inherit; }

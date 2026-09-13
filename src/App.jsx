@@ -28,6 +28,10 @@ const DEFAULT_SUGGESTIONS = [
 
 const SPEEDS = [0.5, 1, 2, 4]
 const PARAMS = new URLSearchParams(window.location.search)
+// ?theme=light paints the same composition on paper instead of on a dark
+// field, for embedding somewhere that is not itself dark. Anything else, and
+// anything absent, is the dark edition it has always been.
+const videoTheme = PARAMS.get('theme') === 'light' ? 'light' : 'dark'
 
 function fmt(ts) {
   if (!ts) return '—'
@@ -452,7 +456,7 @@ export default function App() {
         <div>
           <GithubToken />
           {repo && <button type="button" disabled={loading} onClick={() => load(repo.repo, refRef.current, { refresh: true })}>Refresh history</button>}
-          {repo && (repo.prebuilt || repo.browser?.hasMore) && repo.loadLimit < 3000 && <button type="button" disabled={loading} onClick={() => { const n = [300, 1000, 1500, 3000].find(n => n > repo.loadLimit); setMaxCommits(n); load(repo.repo, refRef.current, { maxCommits: n }) }}>Load more history</button>}
+          {repo && (repo.prebuilt || repo.browser?.hasMore) && repo.loadLimit < 3000 && <button type="button" disabled={loading} onClick={() => { const n = [300, 1000, 1500, 3000].find(n => n > repo.loadLimit); setMaxCommits(n); load(repo.repo, refRef.current, { maxCommits: n, deeper: true }) }}>Load more history</button>}
           <button type="button" disabled={loading} onClick={async () => { try { await clearHistories(); setToast('Saved histories cleared') } catch { setToast('Could not clear browser storage') } }}>Clear saved histories</button>
         </div>
       </div>
@@ -676,7 +680,7 @@ export default function App() {
       </main>
 
       {compareOpen && repo && <CompareView primary={repo} initial={compareInitial.current} privacy={privacy} maxCommits={repo.loadLimit ?? maxCommits} gitea={config?.gitea} giteaRepos={giteaRepos} onClose={() => setCompareOpen(false)} />}
-      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} embed={embedded} chrome={videoChrome} />}
+      {videoMode && repo && <VideoMode repo={repo} privacy={privacy} clock={clock} tracks={tracks} onClose={closeVideo} shareLink={videoLink} embed={embedded} chrome={videoChrome} theme={videoTheme} />}
 
       {/* ── Transport ── */}
       <footer className="transport border-t border-line bg-panel px-3 py-3 sm:px-5" role="group" aria-label="Playback controls">

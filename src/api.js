@@ -6,8 +6,19 @@ export const STATIC = import.meta.env.VITE_STATIC === '1'
 export const BASE = import.meta.env.BASE_URL || '/'
 export const REPO_URL = import.meta.env.VITE_REPO_URL || 'https://github.com'
 
+// Histories fetched from the history server, held between startLoad and the
+// poll that collects them. One entry, taken out as it is read.
+const served = new Map()
 let indexPromise = null
-const demoIndex = () => (indexPromise ||= json(`${BASE}data/index.json`).catch(e => { indexPromise = null; throw e }))
+// Always an object with a demos array, whatever came back. A host that answers
+// a missing file with its own index.html rather than a 404 -- which any SPA
+// fallback does, including `vite preview` -- parses as an empty object, and
+// `idx.demos.find` on that took the whole viewer down with "Cannot read
+// properties of undefined". A build with no demos is a normal state; a crash
+// on the way to reading one is not.
+const demoIndex = () => (indexPromise ||= json(`${BASE}data/index.json`)
+  .then(d => ({ ...d, demos: Array.isArray(d?.demos) ? d.demos : [] }))
+  .catch(e => { indexPromise = null; throw e }))
 
 async function json(url, options) {
   const r = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) })
@@ -37,6 +48,29 @@ export async function startLoad(repo, options) {
   // request ("Load more history") falls through to a real clone.
   const bakedLimit = demo?.limit ?? 300
   if (demo && (maxCommits === DEFAULT_COMMITS || maxCommits === bakedLimit) && !options?.ref && !options?.refresh && !await cachedHistory(historyKey(name, '', maxCommits))) return { job: demo.slug, static: true }
+
+  // Gitilla's history server has usually done this already, on a token with a
+  // budget this page does not have, and keeps the answer -- so ask it before
+  // asking the browser to clone anything. Skipped for a branch or a refresh,
+  // neither of which a cached answer can honour.
+  //
+  // `maxCommits` is a ceiling, not a demand -- an embed passes max=3000 meaning
+  // "no more than this", and torvalds/linux has rather more than 3000. Judging
+  // the server's answer against that number rejected a thousand commits of
+  // linux, served from cache in three milliseconds, in favour of a clone this
+  // browser cannot finish: strictly worse, and slower about it. Only the
+  // "Load more history" button is an actual demand for depth, and it now says
+  // so; everything else takes what the server has.
+  if (!options?.ref && !options?.refresh && !options?.deeper) {
+    const { gitillaHistory } = await import('./browser-git/gitilla-history.js')
+    const history = await gitillaHistory(name)
+    if (history) {
+      const job = `gitilla-${name}`
+      served.set(job, history)
+      return { job, static: true }
+    }
+  }
+
   const { startBrowserLoad } = await import('./browser-git/client.js')
   return startBrowserLoad(name, { ...options, maxCommits })
 }
@@ -46,6 +80,11 @@ export async function pollStatus(job) {
     const r = await fetch('/api/status/' + encodeURIComponent(job), { signal: AbortSignal.timeout(15000) })
     const s = await r.json()
     return { ok: r.ok, ...s }
+  }
+  if (job.startsWith('gitilla-')) {
+    const result = served.get(job)
+    served.delete(job)
+    return result ? { ok: true, status: 'done', result } : { ok: false, error: 'That history is no longer in hand. Try again.' }
   }
   if (job.startsWith('browser-')) return (await import('./browser-git/client.js')).browserStatus(job)
   const result = await json(`${BASE}data/${job}.json`)

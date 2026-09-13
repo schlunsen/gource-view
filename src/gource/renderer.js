@@ -1,6 +1,7 @@
 import { motion, glide, nearestAngle } from './camera-motion.js'
 import { drawEnergyBeam, drawCommitWave } from './energy.js'
 import { createBackdrop, drawDust, createBloom } from './atmosphere.js'
+import { paletteFor } from './palette.js'
 import { layoutSeries } from './organic-layout.js'
 import { buildContributorCards, initials, dateParts, commitsBefore } from './contributor-cards.js'
 import { buildActors, actorState } from './actors.js'
@@ -12,18 +13,21 @@ import { createClockFade } from './clock-fade.js'
 // Gource-style renderer: transient per-commit bursts, smooth easing, motion.
 // Canvas sizing: ResizeObserver on the parent (fixes the 300×150 bug).
 
-// Hallmark palette (RGB for canvas, mirrors the OKLCH tokens)
-const C = {
-  code:    [255, 160,  58], // orange — source code
-  data:    [ 58, 190, 255], // blue   — data / text / markup
-  image:   [140, 120, 255], // purple — images / binaries
-  dir:     [140, 160, 190], // muted  — directories
-  edge:    [100, 120, 150], // line   — edges
-  bubbleBg:[ 12,  16,  26],
-  accent:  [100, 222, 219], // teal — hover / focus
+// The palette is chosen per renderer now (see palette.js), so the drawing code
+// keeps the short name it always used and the colours arrive from outside.
+function paletteRgb(P) {
+  return {
+    code: P.code,        // source
+    data: P.data,        // data / text / markup
+    image: P.image,      // images / binaries
+    dir: P.dir,          // directories
+    edge: P.edge,        // edges
+    bubbleBg: P.bubbleBg,
+    accent: P.accentRgb, // hover / focus
+  }
 }
 
-function colorForPath(p) {
+function colorForPath(p, C) {
   const ext = (p.split('.').pop() || '').toLowerCase()
   if (['png','jpg','jpeg','gif','svg','webp','ico','bmp','pdf'].includes(ext)) return C.image
   if (['html','htm','xml','md','markdown','rst','txt','json','yml','yaml','toml','csv','sql'].includes(ext)) return C.data
@@ -44,6 +48,8 @@ export function createGource(canvasEl, repo, options = {}) {
   const canvas = canvasEl || document.getElementById('gource-canvas')
   if (!canvas) throw new Error('gource canvas not found')
   const ctx = canvas.getContext('2d')
+  const P = paletteFor(options.theme)   // 'light' paints the same picture on paper
+  const C = paletteRgb(P)
   const reduceMotion = options.manual ? false : window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   // ---- build tree + layout ----
@@ -132,7 +138,7 @@ export function createGource(canvasEl, repo, options = {}) {
 
   const visibleSet = new Set(visible)
   // per-node colour
-  for (const n of visible) n.color = n.type === 'file' ? colorForPath(n.path) : C.dir
+  for (const n of visible) n.color = n.type === 'file' ? colorForPath(n.path, C) : C.dir
   // subtree file counts drive label priority and big-folder collapsing
   const weightMemo = new Map()
   function weightOf(n) {
@@ -319,7 +325,7 @@ export function createGource(canvasEl, repo, options = {}) {
   // right now, and anything not yet born sits on its nearest living ancestor.
   // That is what makes a big import bloom outward instead of dotting the final
   // layout. Cached per frame; cleared at the top of draw().
-  const bloom = createBloom(), backdrop = createBackdrop()
+  const bloom = createBloom(), backdrop = createBackdrop(P)
   let wallClock = 0 // seconds of playback, for atmosphere drift (deterministic in exports)
   let posCache = new Map()
   function graphPos(n) {
@@ -781,7 +787,7 @@ export function createGource(canvasEl, repo, options = {}) {
     if (!reduceMotion) {
       const [gcx, gcy] = project(graph.center)
       backdrop(ctx, canvas, gcx, gcy, Math.max(width, height) * 0.34, wallClock)
-      drawDust(ctx, width, height, wallClock, width < 640 ? 40 : 90)
+      drawDust(ctx, width, height, wallClock, width < 640 ? 40 : 90, P)
     }
     const isMobile = width < 640
     const labels = []
@@ -1183,7 +1189,10 @@ export function createGource(canvasEl, repo, options = {}) {
       ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center'
     }
     // Bloom the graph before the HUD is drawn, so cards and labels stay crisp.
-    if (!reduceMotion) bloom(ctx, canvas, 1)
+    // Bloom is light added on top; on paper there is little headroom above the
+    // ground colour, so it is dialled most of the way down rather than off --
+    // enough to keep the nodes from looking stamped on.
+    if (!reduceMotion) bloom(ctx, canvas, P.glowAlpha)
     lastHovered = dragging ? null : hovered
     drawCards()
     drawDate()

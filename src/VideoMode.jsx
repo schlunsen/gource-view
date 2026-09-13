@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createGource } from './gource/renderer.js'
+import { paletteFor } from './gource/palette.js'
 import { createComposition } from './gource/composition.js'
 import { musicFileUrl } from './api.js'
 
@@ -8,6 +9,11 @@ const timecode = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padSta
 function preference(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
 }
+// Below this, the composition's own pixels stop being readable at the size the
+// embed is actually displayed at. Chosen from the corner player in Gitilla,
+// which is 560px wide.
+const MIN_LEGIBLE_SCALE = 0.78
+
 const FONT_SANS = '"Space Grotesk", sans-serif', FONT_MONO = '"JetBrains Mono", monospace'
 
 /** Subtle WebAudio effects: a blip per commit, a soft whoosh for bursts. */
@@ -44,7 +50,7 @@ function makeEffects() {
  * Fullscreen "play as video": the export composition (title card → paced
  * history → leaderboard) driven live, with a music bed and subtle effects.
  */
-export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink, embed = false, chrome = true }) {
+export default function VideoMode({ repo, privacy, clock = true, tracks, onClose, shareLink, embed = false, chrome = true, theme = 'dark' }) {
   const host = useRef(null), canvasRef = useRef(null), audioRef = useRef(null)
   const [duration, setDuration] = useState(30)
   const total = INTRO + duration + OUTRO
@@ -184,12 +190,23 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
       const r = host.current.getBoundingClientRect()
       const portrait = r.height > r.width
       W = portrait ? 1080 : 1920; H = portrait ? 1920 : 1080
+      // Everything -- the tree and the chrome over it -- is drawn in this
+      // logical space and then scaled to fit. At 1920 logical inside a 560px
+      // embed that scale is 0.29, so the 16px date lands at four and a half
+      // real pixels and the tree is a handful of specks. Shrinking the logical
+      // canvas is one lever for both: the same drawing, over less coordinate
+      // space, comes out larger once it is scaled up to the box it is in.
+      const fit = Math.min(r.width / W, r.height / H)
+      if (fit < MIN_LEGIBLE_SCALE) {
+        const k = Math.max(0.42, fit / MIN_LEGIBLE_SCALE)  // a floor, or the fixed margins swamp the picture
+        W = Math.round(W * k); H = Math.round(H * k)
+      }
       const scale = Math.min(r.width / W, r.height / H), dpr = Math.min(2, window.devicePixelRatio || 1)
       canvas.style.width = `${W * scale}px`; canvas.style.height = `${H * scale}px`
       canvas.width = Math.round(W * scale * dpr); canvas.height = Math.round(H * scale * dpr)
       renderer?.destroy()
-      renderer = createGource(canvas, repo, { manual: true, duration, pixelRatio: canvas.width / W, privacy, clock })
-      composition = createComposition({ ctx, data: repo, config, renderer, W, H })
+      renderer = createGource(canvas, repo, { manual: true, duration, pixelRatio: canvas.width / W, privacy, clock, theme })
+      composition = createComposition({ ctx, data: repo, config, renderer, W, H, palette: paletteFor(theme) })
       events = composition.soundEvents().sort((a, b) => a.t - b.t); nextEvent = events.findIndex(e => e.t >= state.current.elapsed); if (nextEvent < 0) nextEvent = events.length
     }
     size()
@@ -237,7 +254,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
     fx.resume()
     raf = requestAnimationFrame(loop)
     return () => { disposed = true; cancelAnimationFrame(raf); ro.disconnect(); renderer?.destroy(); fx.close(); fxRef.current = null }
-  }, [repo, duration, privacy, clock, restartKey, embed])
+  }, [repo, duration, privacy, clock, restartKey, embed, theme])
 
   // Reset only for a new track or replay, never for pause/resume.
   useEffect(() => {
@@ -252,7 +269,7 @@ export default function VideoMode({ repo, privacy, clock = true, tracks, onClose
 
 
   return (
-    <div ref={host} className={`video-mode${chrome ? '' : ' is-chromeless'}`} role={chrome ? 'dialog' : 'presentation'} aria-modal={chrome ? 'true' : undefined} aria-label="Video mode" tabIndex={chrome ? -1 : undefined} data-phase={phase} onClick={e => { if (chrome && (e.target === host.current || e.target === canvasRef.current)) togglePlayback() }}>
+    <div ref={host} className={`video-mode${chrome ? '' : ' is-chromeless'}`} data-theme={theme} role={chrome ? 'dialog' : 'presentation'} aria-modal={chrome ? 'true' : undefined} aria-label="Video mode" tabIndex={chrome ? -1 : undefined} data-phase={phase} onClick={e => { if (chrome && (e.target === host.current || e.target === canvasRef.current)) togglePlayback() }}>
       <canvas ref={canvasRef} className="video-canvas" aria-label="Video playback" />
       {music !== 'none' && <audio ref={audioRef} src={musicFileUrl(music)} loop preload="auto" onError={() => setAudioFailed(true)} />}
       {toast && <div className="video-toast" role="status">{toast}</div>}
