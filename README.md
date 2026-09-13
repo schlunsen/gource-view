@@ -272,7 +272,7 @@ from the picker.
 
 ## Mac screen saver
 
-**Git Visualizer** plays GourceView and [Git City](https://schlunsen.github.io/git-city/)
+**Git Visualizer** plays GourceView and [Git City](https://gitilla.com/)
 full-screen as a macOS screen saver, crossfading between repositories and GitHub
 profiles. It's free, notarized by Apple, and runs on macOS 14 Sonoma or later.
 

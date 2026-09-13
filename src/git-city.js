@@ -9,7 +9,10 @@
 // unlinked — this must never cost the viewer its rate-limit budget.
 import { API, headers, storedToken } from './browser-git/github-api.js'
 
-export const GIT_CITY_URL = import.meta.env?.VITE_GIT_CITY_URL || 'https://schlunsen.github.io/git-city/'
+// gitilla.com is where Git City actually lives: the Pages build is the same
+// project one deploy behind, and it is the canonical link an author's city
+// should open at. Still overridable for local work.
+export const GIT_CITY_URL = import.meta.env?.VITE_GIT_CITY_URL || 'https://gitilla.com/'
 
 export const gitCityUrl = login => `${GIT_CITY_URL}?user=${encodeURIComponent(login)}`
 
