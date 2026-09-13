@@ -82,7 +82,7 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
     const portrait = H > W, x = portrait ? 90 : 200, base = portrait ? H * 0.46 : 580, big = portrait ? 64 : 84, small = portrait ? 18 : 22
     ctx.fillStyle = P.bgOuter; ctx.fillRect(0, 0, W, H)
     const glow = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.47)
-    glow.addColorStop(0, 'rgba(100,222,219,0.10)'); glow.addColorStop(1, 'rgba(100,222,219,0)')
+    glow.addColorStop(0, `rgba(${P.accentRgb.join(',')},0.10)`); glow.addColorStop(1, `rgba(${P.accentRgb.join(',')},0)`)
     ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
     const rise = (1 - easeOut(p / 0.4)) * 40
     ctx.globalAlpha = (1 - dissolve) * easeOut(p / 0.35)
@@ -106,7 +106,7 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
   function outroCardAt(p, W, H) {
     const portrait = H > W, x0 = portrait ? 80 : 200, rowW = W - x0 - (portrait ? 80 : 200), top = 300, rowH = 112
     const dim = easeOut(p / 0.2)
-    ctx.fillStyle = `rgba(10,16,27,${0.82 * dim})`; ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = `rgba(${P.scrim.join(',')},${0.82 * dim})`; ctx.fillRect(0, 0, W, H)
     ctx.globalAlpha = dim
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
     ctx.fillStyle = P.accent; ctx.fillRect(x0 - 40, top - 150, 6, 44)
@@ -125,7 +125,7 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
       const y = top + i * rowH, slide = (1 - t) * 80
       const col = renderer.authorColor(name)
       ctx.globalAlpha = dim * t
-      ctx.fillStyle = 'rgba(17,27,40,0.85)'
+      ctx.fillStyle = `rgba(${P.rowFace.join(',')},${P.rowFaceA})`
       roundRect(x0 - slide, y - 44, rowW, 92, 14); ctx.fill()
       ctx.fillStyle = `rgb(${col.join(',')})`
       ctx.beginPath(); ctx.moveTo(x0 - slide, y - 44); ctx.lineTo(x0 + 26 - slide, y - 44); ctx.lineTo(x0 + 14 - slide, y + 48); ctx.lineTo(x0 - slide, y + 48); ctx.closePath(); ctx.fill()
@@ -136,7 +136,7 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
       ctx.fillStyle = P.ink; ctx.font = `700 30px ${FONT_SANS}`
       ctx.fillText(renderer.displayName(name), x0 + 230 - slide, y - 12, Math.max(200, barW - 40))
-      ctx.fillStyle = 'rgba(115,137,162,0.35)'; ctx.fillRect(x0 + 230 - slide, y + 18, barW, 6)
+      ctx.fillStyle = `rgba(${P.track.join(',')},${P.trackA})`; ctx.fillRect(x0 + 230 - slide, y + 18, barW, 6)
       ctx.fillStyle = `rgb(${col.join(',')})`; ctx.fillRect(x0 + 230 - slide, y + 18, barW * (count / max) * easeOut((t - 0.2) / 0.8), 6)
       ctx.textAlign = 'right'; ctx.fillStyle = P.ink; ctx.font = `700 34px ${FONT_SANS}`
       ctx.fillText(String(count), x0 + rowW - 40 - slide, y - 6)

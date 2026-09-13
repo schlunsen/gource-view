@@ -597,7 +597,7 @@ export function createGource(canvasEl, repo, options = {}) {
       ctx.save()
       ctx.globalAlpha = alpha
       // drop shadow + body
-      ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 18 * ui; ctx.shadowOffsetY = 6 * ui
+      ctx.shadowColor = rgba(P.shadow, 0.45 * P.shadowK); ctx.shadowBlur = 18 * ui; ctx.shadowOffsetY = 6 * ui
       ctx.fillStyle = rgba(C.bubbleBg, 0.94)
       roundRect(x, y, cw, ch, r); ctx.fill()
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
@@ -637,10 +637,10 @@ export function createGource(canvasEl, repo, options = {}) {
       ctx.fillText(cd.kind === 'debut' ? 'NEW CONTRIBUTOR' : `MILESTONE · ${cd.commits} COMMITS`, tx, y + 22 * ui, maxW)
       setLetterSpacing(0)
       ctx.font = `700 ${15 * ui}px "Space Grotesk", sans-serif`
-      ctx.fillStyle = 'rgba(235,240,248,0.98)'
+      ctx.fillStyle = rgba(P.hudInk, 0.98)
       ctx.fillText(displayName(cd.name), tx, y + 42 * ui, maxW)
       ctx.font = `500 ${10 * ui}px "JetBrains Mono", monospace`
-      ctx.fillStyle = 'rgba(164,182,203,0.9)'
+      ctx.fillStyle = rgba(P.hudSoft, 0.9)
       const d = dateParts(cd.ts)
       const stat = cd.kind === 'debut'
         ? `first commit · ${cd.files} file${cd.files === 1 ? '' : 's'} · ${d.day} ${d.month} ${d.year}`
@@ -667,33 +667,33 @@ export function createGource(canvasEl, repo, options = {}) {
     // compact layouts keep the top of the canvas clear, so the scoreboard tucks into the corner
     const y = options.manual ? height * 0.038 : insets ? 12 : isMobile ? 110 : 20
     ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
+    ctx.shadowColor = rgba(P.shadow, 0.35 * P.shadowK); ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
     ctx.fillStyle = rgba(C.bubbleBg, 0.86)
     roundRect(x, y, w, h, r); ctx.fill()
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
-    ctx.strokeStyle = 'rgba(115,137,162,0.22)'; ctx.lineWidth = 1
+    ctx.strokeStyle = rgba(P.hudLine, 0.22); ctx.lineWidth = 1
     roundRect(x, y, w, h, r); ctx.stroke()
     // accent tick
-    ctx.fillStyle = 'rgba(100,222,219,0.9)'
+    ctx.fillStyle = rgba(C.accent, 0.9)
     ctx.fillRect(x + 14 * ui, y + 15 * ui, 3 * ui, 10 * ui)
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
     setLetterSpacing(2 * ui)
     ctx.font = `600 ${9 * ui}px "JetBrains Mono", monospace`
-    ctx.fillStyle = 'rgba(129,147,170,1)'
+    ctx.fillStyle = rgba(P.hudMuted, 1)
     ctx.fillText('TIMELINE', x + 23 * ui, y + 24 * ui)
     setLetterSpacing(0)
     // big date: DD MON YYYY with tabular digits
     ctx.font = `700 ${24 * ui}px "Space Grotesk", sans-serif`
-    ctx.fillStyle = 'rgba(235,240,248,1)'
+    ctx.fillStyle = rgba(P.hudInk, 1)
     ctx.fillText(d.day, x + 14 * ui, y + 48 * ui)
     const dayW = ctx.measureText('00').width
-    ctx.fillStyle = 'rgba(100,222,219,1)'
+    ctx.fillStyle = rgba(C.accent, 1)
     ctx.fillText(d.month, x + 14 * ui + dayW + 8 * ui, y + 48 * ui)
     const monW = ctx.measureText('MMM').width
-    ctx.fillStyle = 'rgba(235,240,248,1)'
+    ctx.fillStyle = rgba(P.hudInk, 1)
     ctx.fillText(d.year, x + 14 * ui + dayW + monW + 16 * ui, y + 48 * ui)
     ctx.font = `500 ${9 * ui}px "JetBrains Mono", monospace`
-    ctx.fillStyle = 'rgba(129,147,170,1)'
+    ctx.fillStyle = rgba(P.hudMuted, 1)
     ctx.fillText(`${d.weekday} · ${done}/${totalCommits} commits`, x + 14 * ui, y + 60 * ui, w - 28 * ui)
     ctx.restore()
     if (showClock && clockFade.alpha > 0.005) {
@@ -714,23 +714,23 @@ export function createGource(canvasEl, repo, options = {}) {
     const night = hours < 6 || hours >= 20
     ctx.save()
     // face
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
+    ctx.shadowColor = rgba(P.shadow, 0.35 * P.shadowK); ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
     const face = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r)
-    face.addColorStop(0, night ? 'rgba(22,30,46,0.96)' : 'rgba(26,38,54,0.96)'); face.addColorStop(1, rgba(C.bubbleBg, 0.92))
+    face.addColorStop(0, night ? rgba(P.hudFaceNight, 0.96) : rgba(P.hudFace, 0.96)); face.addColorStop(1, rgba(C.bubbleBg, 0.92))
     ctx.fillStyle = face
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
-    ctx.strokeStyle = 'rgba(115,137,162,0.28)'; ctx.lineWidth = 1
+    ctx.strokeStyle = rgba(P.hudLine, 0.28); ctx.lineWidth = 1
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
     // day/night: a faint arc of sky along the rim, brighter by day
     const rim = ctx.createRadialGradient(cx, cy, r * 0.78, cx, cy, r)
-    rim.addColorStop(0, 'rgba(100,222,219,0)'); rim.addColorStop(1, night ? 'rgba(140,120,255,0.18)' : 'rgba(100,222,219,0.16)')
+    rim.addColorStop(0, rgba(C.accent, 0)); rim.addColorStop(1, night ? rgba(P.hudRim, 0.18) : rgba(C.accent, 0.16))
     ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
     // ticks: 60 hairlines, quarters in accent
     for (let i = 0; i < 60; i++) {
       const a = (i / 60) * Math.PI * 2, quarter = i % 15 === 0, hour = i % 5 === 0
       const inner = r * (quarter ? 0.78 : hour ? 0.84 : 0.9), outer = r * 0.95
-      ctx.strokeStyle = quarter ? rgba(C.accent, 0.95) : hour ? 'rgba(200,215,235,0.7)' : 'rgba(129,147,170,0.35)'
+      ctx.strokeStyle = quarter ? rgba(C.accent, 0.95) : hour ? rgba(P.hudBright, 0.7) : rgba(P.hudMuted, 0.35)
       ctx.lineWidth = (quarter ? 1.6 : 1) * ui
       ctx.beginPath(); ctx.moveTo(cx + Math.sin(a) * inner, cy - Math.cos(a) * inner); ctx.lineTo(cx + Math.sin(a) * outer, cy - Math.cos(a) * outer); ctx.stroke()
     }
@@ -741,7 +741,7 @@ export function createGource(canvasEl, repo, options = {}) {
     }
     // one hand: the hour (minutes only make it a blur at history speed)
     const ha = (hours % 12) / 12 * Math.PI * 2
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3 * ui
+    ctx.shadowColor = rgba(P.shadow, 0.5 * P.shadowK); ctx.shadowBlur = 3 * ui
     hand(ha, 0.62, 2.8, rgba(C.accent, 1))
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0
     ctx.fillStyle = rgba(C.accent, 1); ctx.beginPath(); ctx.arc(cx, cy, 2.2 * ui, 0, Math.PI * 2); ctx.fill()
@@ -749,7 +749,7 @@ export function createGource(canvasEl, repo, options = {}) {
     // AM / PM
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
     ctx.font = `600 ${7 * ui}px "JetBrains Mono", monospace`
-    ctx.fillStyle = 'rgba(129,147,170,0.9)'
+    ctx.fillStyle = rgba(P.hudMuted, 0.9)
     setLetterSpacing(1 * ui); ctx.fillText(hours >= 12 ? 'PM' : 'AM', cx, cy + r * 0.52); setLetterSpacing(0)
     ctx.restore()
   }
@@ -849,7 +849,7 @@ export function createGource(canvasEl, repo, options = {}) {
       const mean = (Math.hypot(gp[0] - ox, gp[1] - oy) + Math.hypot(gn[0] - ox, gn[1] - oy)) / 2
       const lift = chord > 1e-3 ? Math.min(1.6, mean / chord) : 1
       const [cx, cy] = project([ox + gmx * lift, oy + gmy * lift])
-      ctx.strokeStyle = `rgba(0,0,0,${(0.35 * alpha).toFixed(3)})`
+      ctx.strokeStyle = rgba(P.shadow, 0.35 * alpha * P.shadowK)
       ctx.lineWidth = w + 2
       ctx.beginPath(); ctx.moveTo(px + 1.5, py + 1.5); ctx.quadraticCurveTo(cx + 1.5, cy + 1.5, nx + 1.5, ny + 1.5); ctx.stroke()
       const g = ctx.createLinearGradient(px, py, nx, ny)
@@ -974,7 +974,7 @@ export function createGource(canvasEl, repo, options = {}) {
         ctx.lineWidth = 1.5 - k
         ctx.beginPath(); ctx.arc(nx, ny, size * 1.5 + k * (isDir ? 22 : 14), 0, Math.PI * 2); ctx.stroke()
         ctx.globalAlpha = (1 - k) * 0.5 * flash
-        ctx.fillStyle = 'rgba(255,255,255,1)'
+        ctx.fillStyle = rgba(P.hudWhite, 1)
         ctx.beginPath(); ctx.arc(nx, ny, size * (1 + (1 - k) * 0.8), 0, Math.PI * 2); ctx.fill()
       }
 
@@ -982,7 +982,7 @@ export function createGource(canvasEl, repo, options = {}) {
       if (!reduceMotion && !isDir && heat > 0.85 && birth >= 1) {
         const k = (1 - heat) / 0.15
         ctx.globalAlpha = (1 - k) * 0.55 * v.a
-        ctx.strokeStyle = 'rgba(255,255,255,1)'; ctx.lineWidth = 1
+        ctx.strokeStyle = rgba(P.hudWhite, 1); ctx.lineWidth = 1
         ctx.beginPath(); ctx.arc(nx, ny, size * 1.4 + k * 9, 0, Math.PI * 2); ctx.stroke()
       }
       // deletion: a brief red ring as the file collapses
@@ -991,7 +991,7 @@ export function createGource(canvasEl, repo, options = {}) {
         const k = d == null ? 1 : (now() - d) / (histPerSec * 0.5)
         if (k >= 0 && k < 1) {
           ctx.globalAlpha = (1 - k) * 0.6
-          ctx.strokeStyle = 'rgba(255,110,110,1)'; ctx.lineWidth = 1.2
+          ctx.strokeStyle = rgba(P.hudWarn, 1); ctx.lineWidth = 1.2
           ctx.beginPath(); ctx.arc(nx, ny, size * 1.2 + k * 10, 0, Math.PI * 2); ctx.stroke()
         }
       }
@@ -1101,7 +1101,8 @@ export function createGource(canvasEl, repo, options = {}) {
             const length = Math.hypot(dx, dy) || 1, reach = Math.max(graph.width, graph.height) * 0.45 + 60
             origin = [st.target[0] + dx / length * reach, st.target[1] + dy / length * reach]
           }
-          ctx.save(); ctx.globalCompositeOperation = 'lighter'
+          // The actor's trail: additive against black, plain against paper.
+          ctx.save(); ctx.globalCompositeOperation = P.glowAlpha > 0 ? 'lighter' : 'source-over'
           let last = [ax, ay]
           for (let j = 1; j <= 10; j++) {
             const t = Math.max(0, st.travel - j * 0.035), e = st.fromPos ? easeInOut(t) : easeOutCubic(t)
@@ -1180,7 +1181,7 @@ export function createGource(canvasEl, repo, options = {}) {
         ctx.strokeStyle = rgba(a.col, 0.5); ctx.lineWidth = 1
         roundRect(px, py - ph / 2, pw, ph, ph / 2); ctx.stroke()
         ctx.textAlign = 'left'
-        ctx.fillStyle = 'rgba(235,240,248,0.96)'
+        ctx.fillStyle = rgba(P.hudInk, 0.96)
         ctx.font = `600 ${12 * ui}px "Space Grotesk", sans-serif`
         ctx.fillText(shown, px + 9 * ui, py + 1)
         if (extra) { ctx.fillStyle = rgba(a.col, 1); ctx.font = `500 ${10 * ui}px "JetBrains Mono", monospace`; ctx.fillText(extra, px + 9 * ui + nameW + 8 * ui, py + 1) }
@@ -1204,7 +1205,7 @@ export function createGource(canvasEl, repo, options = {}) {
       const y = Math.max(8, Math.min(height - 40, pointer.y + 16))
       ctx.fillStyle = rgba(C.bubbleBg, 0.96)
       roundRect(x, y, boxWidth, 30, 6); ctx.fill()
-      ctx.fillStyle = 'rgb(235,240,248)'
+      ctx.fillStyle = rgba(P.hudInk, 1)
       ctx.textAlign = 'left'
       ctx.fillText(text, x + 12, y + 20, boxWidth - 24)
     }
