@@ -20,8 +20,8 @@ function fakeFetch(routes) {
 const commit = (login, name, email, type = 'User') => ({ author: login ? { login, type } : null, commit: { author: { name, email } } })
 
 test('gitCityUrl points at the profile city', () => {
-  assert.equal(gitCityUrl('torvalds'), 'https://schlunsen.github.io/git-city/?user=torvalds')
-  assert.equal(gitCityUrl('a b'), 'https://schlunsen.github.io/git-city/?user=a%20b')
+  assert.equal(gitCityUrl('torvalds'), 'https://gitilla.com/?user=torvalds')
+  assert.equal(gitCityUrl('a b'), 'https://gitilla.com/?user=a%20b')
 })
 
 test('noreply e-mails name the login outright', () => {
