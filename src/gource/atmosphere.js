@@ -1,15 +1,23 @@
-// Purely additive atmosphere: every pass composites with 'lighter' and the
-// canvas stays transparent, so the page background and the export composition
-// keep painting behind the graph exactly as before.
+// Atmosphere, in either edition.
+//
+// The dark edition is purely additive: every pass composites with 'lighter'
+// and the canvas stays transparent, so whatever is behind the graph keeps
+// painting through. That is exactly the wrong arithmetic on paper -- adding
+// light to something already near white does nothing until it blows out to a
+// flat white smear -- so the light edition draws the same shapes with
+// 'source-over' and its own weaker colours. Hence the palette is threaded in
+// rather than the colours simply being swapped.
 
 const tint = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`
+const DARK = { nebula: [[36, 92, 148], [78, 46, 138], [22, 104, 106]], haze: [170, 210, 240], hazeAlpha: 1, light: false }
+const edition = P => (P && P.nebula ? { ...P, light: P.hazeAlpha < 1 } : DARK)
 
-// Deep-space wash behind the tree. Three slow, offset clouds read as depth
-// without ever becoming an opaque blob that swallows the edges.
-const CLOUDS = [[36, 92, 148], [78, 46, 138], [22, 104, 106]]
-export function drawNebula(ctx, cx, cy, radius, t) {
+// Wash behind the tree. Three slow, offset clouds read as depth without ever
+// becoming an opaque blob that swallows the edges.
+export function drawNebula(ctx, cx, cy, radius, t, P) {
+  const E = edition(P), CLOUDS = E.nebula
   ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalCompositeOperation = E.light ? 'source-over' : 'lighter'
   for (let i = 0; i < CLOUDS.length; i++) {
     const a = t * 0.04 + i * 2.1
     const x = cx + Math.cos(a) * radius * 0.32
@@ -30,7 +38,7 @@ export function drawNebula(ctx, cx, cy, radius, t) {
 // very low frequency, so they are painted into a 1/8-scale layer and blitted
 // up once. They land on an empty canvas, so 'lighter' and 'source-over' agree.
 const BACKDROP_SCALE = 8
-export function createBackdrop() {
+export function createBackdrop(P) {
   let layer = null
   return function backdrop(ctx, canvas, cx, cy, radius, t) {
     const w = Math.max(1, Math.round(canvas.width / BACKDROP_SCALE))
@@ -46,8 +54,8 @@ export function createBackdrop() {
     // ctx is in CSS pixels; scale the layer so the same coordinates apply.
     const k = w / (canvas.width / (ctx.getTransform().a || 1))
     l.setTransform(k, 0, 0, k, 0, 0)
-    drawNebula(l, cx, cy, radius, t)
-    drawVignette(l, canvas.width / (ctx.getTransform().a || 1), canvas.height / (ctx.getTransform().d || 1), cx, cy)
+    drawNebula(l, cx, cy, radius, t, P)
+    drawVignette(l, canvas.width / (ctx.getTransform().a || 1), canvas.height / (ctx.getTransform().d || 1), cx, cy, P)
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.globalCompositeOperation = 'source-over'
@@ -59,9 +67,10 @@ export function createBackdrop() {
 
 // Slow drifting dust. Seeded from the index so seeking never resets it and two
 // renderers sharing one repo stay identical frame for frame.
-export function drawDust(ctx, width, height, t, count = 90) {
+export function drawDust(ctx, width, height, t, count = 90, P) {
+  const E = edition(P)
   ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalCompositeOperation = E.light ? 'source-over' : 'lighter'
   for (let i = 0; i < count; i++) {
     const seed = i * 2654435761 % 1000 / 1000
     const seed2 = (i * 40503) % 997 / 997
@@ -69,7 +78,7 @@ export function drawDust(ctx, width, height, t, count = 90) {
     const x = ((seed * width + t * 6 * depth) % (width + 40)) - 20
     const y = ((seed2 * height + Math.sin(t * 0.25 + i) * 14) % (height + 40)) - 20
     const a = 0.05 + depth * 0.1 + Math.sin(t * 0.9 + i * 1.7) * 0.03
-    ctx.fillStyle = tint([170, 210, 240], Math.max(0, a))
+    ctx.fillStyle = tint(E.haze, Math.max(0, a) * E.hazeAlpha)
     ctx.beginPath(); ctx.arc(x, y, depth * 1.25, 0, Math.PI * 2); ctx.fill()
   }
   ctx.restore()
@@ -131,11 +140,16 @@ export function createBloom() {
 
 // Darkens the frame edges so the wash above never flattens the corners. Drawn
 // over the nebula and under the tree, and only ever over the page background.
-export function drawVignette(ctx, width, height, cx, cy) {
+export function drawVignette(ctx, width, height, cx, cy, P) {
+  const E = edition(P)
+  // Paper does not want a black frame painted round it; it wants the corners
+  // to fall away a little, which on a light ground is a fraction of the depth.
+  const c = E.light ? '120,110,92' : '3,6,14'
+  const k = E.light ? 0.22 : 1
   const r = Math.hypot(width, height) * 0.62
   const g = ctx.createRadialGradient(cx, cy, r * 0.35, cx, cy, r)
-  g.addColorStop(0, 'rgba(3,6,14,0)')
-  g.addColorStop(0.62, 'rgba(3,6,14,0.28)')
-  g.addColorStop(1, 'rgba(3,6,14,0.6)')
+  g.addColorStop(0, `rgba(${c},0)`)
+  g.addColorStop(0.62, `rgba(${c},${0.28 * k})`)
+  g.addColorStop(1, `rgba(${c},${0.6 * k})`)
   ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, width, height); ctx.restore()
 }
