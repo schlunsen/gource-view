@@ -10,16 +10,20 @@ import { fileURLToPath } from 'node:url'
 import { run, collectCommits, summarize } from '../server/history.js'
 import { createDescriptionLoader } from '../server/repo-description.js'
 import { fetchAllPeriods } from '../server/trending.js'
-import { weeklyLeaders } from '../src/landing-data.js'
+import { todaysLeaders } from '../src/landing-data.js'
 const repositoryDescription = createDescriptionLoader({ githubToken: process.env.GITHUB_TOKEN || '' })
 
 const DEMO_COMMITS = 3000 // must match the viewer's default so demos hit the instant path
 const out = path.resolve(process.argv[2] || 'dist')
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 // Publish a complete featured set, or retain the previous successful Pages deploy.
-const weekly = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '')
-const only = weeklyLeaders(weekly).map(r => ({ name: r.name, note: 'trending this week' }))
-if (only.length !== 4) throw new Error('Expected four weekly featured repositories')
+const feed = await fetchAllPeriods(fetch, process.env.GITHUB_TOKEN || '')
+// The front page showcases one project and offers the runners-up as a switch,
+// so every repository it can name must be baked here -- static mode refuses to
+// clone in the visitor's browser.
+const leaders = todaysLeaders(feed)
+const only = leaders.repos.map(r => ({ name: r.name, note: `trending ${leaders.label}` }))
+if (only.length !== 4) throw new Error('Expected four featured repositories')
 const slug = name => name.toLowerCase().replace(/[^a-z0-9.]+/g, '-')
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'gource-static-'))
 fs.mkdirSync(path.join(out, 'data'), { recursive: true })
@@ -49,7 +53,7 @@ fs.writeFileSync(path.join(out, 'data', 'index.json'), JSON.stringify({ builtAt:
 // workflow runs daily, which matches the server's refresh cadence. Failure
 // leaves the previous deploy's list unavailable but never breaks the build.
 try {
-  const t = weekly
+  const t = feed
   if (!t) throw new Error('No trending feed available')
   fs.writeFileSync(path.join(out, 'data', 'trending.json'), JSON.stringify(t))
   console.log(`trending: ${Object.entries(t.periods).map(([id, p]) => `${id} ${p.repos.length}`).join(', ')}`)

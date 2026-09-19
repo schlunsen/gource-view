@@ -548,15 +548,21 @@ export function createGource(canvasEl, repo, options = {}) {
   }
   function leave(e) { if (!dragging && !(e.pointerType === 'touch' && inspecting)) pointer = null }
   function resetView() { zoom = 1; panX = 0; panY = 0; userCamera = false }
-  canvas.style.touchAction = 'none'
-  canvas.style.cursor = 'grab'
-  canvas.addEventListener('wheel', wheel, { passive: false })
-  canvas.addEventListener('pointerdown', down)
-  canvas.addEventListener('pointermove', move)
-  canvas.addEventListener('pointerup', up)
-  canvas.addEventListener('pointercancel', up)
-  canvas.addEventListener('pointerleave', leave)
-  canvas.addEventListener('dblclick', resetView)
+  // A picture used as a backdrop -- the landing page -- must not take the
+  // visitor's wheel, drag or touch: `touch-action: none` and a wheel handler on
+  // the canvas stop the page scrolling the moment the pointer crosses it.
+  const interactive = options.interactive !== false
+  if (interactive) {
+    canvas.style.touchAction = 'none'
+    canvas.style.cursor = 'grab'
+    canvas.addEventListener('wheel', wheel, { passive: false })
+    canvas.addEventListener('pointerdown', down)
+    canvas.addEventListener('pointermove', move)
+    canvas.addEventListener('pointerup', up)
+    canvas.addEventListener('pointercancel', up)
+    canvas.addEventListener('pointerleave', leave)
+    canvas.addEventListener('dblclick', resetView)
+  }
 
   function roundRect(x, y, w, h, r) {
     ctx.beginPath()
@@ -1302,6 +1308,7 @@ export function createGource(canvasEl, repo, options = {}) {
       clearTimeout(tapTimer)
       if (canvas.parentElement) ro.disconnect()
       window.removeEventListener('resize', doResize)
+      if (!interactive) return
       canvas.removeEventListener('wheel', wheel)
       canvas.removeEventListener('pointerdown', down)
       canvas.removeEventListener('pointermove', move)
