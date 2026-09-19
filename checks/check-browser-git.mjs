@@ -92,21 +92,21 @@ try {
  // Clone data is temporary; only the bounded processed-history cache remains.
  const databases = await page.evaluate(async () => (await indexedDB.databases()).map(d => d.name))
  assert.ok(databases.every(n => !n.startsWith('gource-clone-')), 'temporary clone storage is removed')
- // Landing previews must use the four processed files, never the Git worker.
+ // The landing showcase must use a processed file, never the Git worker.
  const featured = Array.from({ length: 4 }, (_, i) => ({ name: `featured/project${i}`, slug: `featured-${i}`, limit: 3000 }))
  await context.route('**/data/index.json', r => r.fulfill({ json: { demos: featured } }))
- await context.route('**/data/trending.json', r => r.fulfill({ json: { fetchedAt: Date.now(), periods: { weekly: { source: 'github.com/trending', repos: featured.map((r, i) => ({ ...r, gained: 100 - i })) } } } }))
+ await context.route('**/data/trending.json', r => r.fulfill({ json: { fetchedAt: Date.now(), periods: { daily: { source: 'github.com/trending', repos: featured.map((r, i) => ({ ...r, gained: 100 - i })) } } } }))
  let previewFiles = 0
  await context.route('**/data/featured-*.json', r => { previewFiles++; return r.fulfill({ json: { ...payload, repo: 'featured/project' } }) })
  const requestsBeforeLanding = gitRequests
  await page.goto(BASE)
- await page.waitForFunction(() => document.querySelectorAll('.landing-card').length === 4 && !document.querySelector('.landing-status'))
- assert.equal(previewFiles, 4, 'all four bundled histories fetched')
+ await page.waitForFunction(() => document.querySelectorAll('.landing-header canvas').length === 1 && !document.querySelector('.landing-status'))
+ assert.equal(previewFiles, 1, 'only the showcased history is fetched')
  assert.equal(gitRequests, requestsBeforeLanding, 'landing makes no Git requests')
  // A missing featured file must not silently trigger a visitor-side clone.
  await context.route('**/data/index.json', r => r.fulfill({ json: { demos: [] } }))
  await page.reload()
- await page.waitForFunction(() => document.querySelectorAll('.landing-status[role="alert"]').length === 4)
+ await page.waitForFunction(() => document.querySelectorAll('.landing-status[role="alert"]').length === 1)
  assert.equal(gitRequests, requestsBeforeLanding, 'missing bundles do not trigger Git downloads')
  assert.deepEqual(errors, [])
  console.log('browser Git check passed: real clone, native counts, branches, cache, refresh, cancellation, retry, cleanup and mobile layout')
