@@ -79,6 +79,13 @@ resolution and blitted once, so the cost stays small; they are skipped under
 reduced-motion settings. The viewer, fullscreen playback and MP4 exports share
 this renderer.
 
+Files are coloured by language, and a legend shows the share of each among the
+files alive at that moment, so a migration reads as the picture changing hue.
+A caption under the date shows the subject of the commit on screen, with its
+author, file count and lines changed; one caption is up at a time and any
+privacy mode hides them. Videos carry a commit-activity histogram along the
+progress rule.
+
 ## Playback
 
 - **Stats** includes a short project description from GitHub or the configured

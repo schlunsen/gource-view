@@ -28,7 +28,7 @@ export async function renderComparisonVideo({
     for (const panel of panels) {
       const cell = document.createElement('canvas')
       cell.width = cellW; cell.height = cellH - header
-      engines.push({ panel, cell, stamps: panel.data.commits.map(c => c.ts), engine: createGource(cell, panel.data, { manual: true, pixelRatio: 1, privacy, clock: false }) })
+      engines.push({ panel, cell, stamps: panel.data.commits.map(c => c.ts), engine: createGource(cell, panel.data, { manual: true, pixelRatio: 1, privacy, clock: false, captions: false }) })
     }
     const faces = ['500', '700'].map(w => `${w} 32px ${FONT_SANS}`).concat(['400', '500'].map(w => `${w} 16px ${FONT_MONO}`))
     await Promise.race([Promise.allSettled(faces.map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 5000))])

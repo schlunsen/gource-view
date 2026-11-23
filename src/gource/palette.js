@@ -15,6 +15,13 @@ export const PALETTES = {
     code: [255, 160, 58], data: [58, 190, 255], image: [140, 120, 255],
     dir: [140, 160, 190], edge: [100, 120, 150], bubbleBg: [12, 16, 26],
     accentRgb: [100, 222, 219],
+    // One hue per language (see languages.js). `code`, `data` and `image` above
+    // stay the colours of everything this table does not name.
+    lang: {
+      ts: [86, 140, 255], js: [240, 208, 80], py: [98, 208, 124], go: [56, 214, 186],
+      rust: [240, 104, 84], c: [246, 116, 160], jvm: [204, 160, 112], ruby: [200, 60, 90],
+      php: [150, 150, 230], shell: [176, 220, 88], style: [226, 120, 224],
+    },
     nebula: [[22, 104, 106], [36, 92, 148], [78, 46, 138]],
     haze: [170, 210, 240], hazeAlpha: 1, glowAlpha: 1,
     // The HUD drawn over the graph: labels, the clock, the milestone cards.
@@ -32,6 +39,11 @@ export const PALETTES = {
     code: [191, 102, 8], data: [21, 104, 173], image: [98, 68, 196],
     dir: [150, 137, 112], edge: [176, 164, 141], bubbleBg: [255, 250, 240],
     accentRgb: [14, 107, 99],
+    lang: {
+      ts: [32, 84, 196], js: [146, 112, 0], py: [24, 122, 60], go: [0, 124, 112],
+      rust: [176, 56, 36], c: [178, 44, 96], jvm: [130, 92, 48], ruby: [150, 24, 56],
+      php: [84, 84, 170], shell: [92, 130, 10], style: [150, 50, 150],
+    },
     // The nebula is a glow; on paper it has to become a wash instead, or it
     // reads as a smudge. Same hues, far weaker, and the additive bloom that
     // makes lights bloom against black is turned nearly off.

@@ -10,6 +10,8 @@ import { buildEvents, deletedAt } from './lifecycle.js'
 import { buildPacing } from './pacing.js'
 import { buildPseudonyms, normalizePrivacy, describeHidden } from './privacy.js'
 import { createClockFade } from './clock-fade.js'
+import { languageOf, languageRows } from './languages.js'
+import { buildCaptions, captionAt, wrapLines } from './commit-captions.js'
 // Gource-style renderer: transient per-commit bursts, smooth easing, motion.
 // Canvas sizing: ResizeObserver on the parent (fixes the 300×150 bug).
 
@@ -24,15 +26,9 @@ function paletteRgb(P) {
     edge: P.edge,        // edges
     bubbleBg: P.bubbleBg,
     accent: P.accentRgb, // hover / focus
+    // file colour by language; whatever the table does not name is plain source
+    lang: { ...P.lang, code: P.code, data: P.data, image: P.image },
   }
-}
-
-function colorForPath(p, C) {
-  const ext = (p.split('.').pop() || '').toLowerCase()
-  if (['png','jpg','jpeg','gif','svg','webp','ico','bmp','pdf'].includes(ext)) return C.image
-  if (['html','htm','xml','md','markdown','rst','txt','json','yml','yaml','toml','csv','sql'].includes(ext)) return C.data
-  if (['css','scss','less','sass'].includes(ext)) return C.code
-  return C.code // default: source
 }
 
 function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})` }
@@ -138,7 +134,9 @@ export function createGource(canvasEl, repo, options = {}) {
 
   const visibleSet = new Set(visible)
   // per-node colour
-  for (const n of visible) n.color = n.type === 'file' ? colorForPath(n.path, C) : C.dir
+  for (const n of visible) {
+    if (n.type === 'file') { n.lang = languageOf(n.path); n.color = C.lang[n.lang] } else n.color = C.dir
+  }
   // subtree file counts drive label priority and big-folder collapsing
   const weightMemo = new Map()
   function weightOf(n) {
@@ -249,6 +247,16 @@ export function createGource(canvasEl, repo, options = {}) {
   // Narrow screens get two lanes so the cards never bury the graph.
   const cardLanes = (canvas.width / Math.min(2, window.devicePixelRatio || 1)) < 640 ? 2 : 3
   const cards = buildContributorCards(repo.commits, { histPerSec, lanes: cardLanes, colorOf: name => authorColor[name] || C.dir })
+  // ---- commit captions: the subject of the commit the picture is reacting to ----
+  const captions = options.captions === false ? [] : buildCaptions(repo.commits, { histPerSec })
+  // ---- language legend: files alive right now, per language ----
+  let languageKey = '', languages = []
+  function noteLanguages(counts) {
+    const key = [...counts].sort().join(' ')
+    if (key === languageKey) return // same array while nothing changes, so the page can skip re-rendering
+    languageKey = key
+    languages = languageRows(counts, C.lang)
+  }
   const commitTimes = repo.commits.map(c => c.ts)
   // auto-pacing: 1× around commits, 4× through dead stretches (live + export)
   const pacing = buildPacing(commitTimes, { from, to, histPerSec })
@@ -661,17 +669,24 @@ export function createGource(canvasEl, repo, options = {}) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
   }
 
-  // Scoreboard date: the one thing you should always be able to read at a glance.
-  function drawDate() {
-    const t = now()
+  // Where the scoreboard sits; the commit caption hangs below it.
+  function dateBox() {
     const ui = uiScale()
     const isMobile = width < 640
-    const d = dateParts(Math.min(to, Math.max(from, t)))
-    const done = commitsBefore(commitTimes, t)
-    const w = 196 * ui, h = 66 * ui, r = 10 * ui
+    const w = 196 * ui, h = 66 * ui
     const x = options.manual ? width - width * 0.031 - w : isMobile ? 14 : width - (insets ? insets.right + 16 : 24) - w
     // compact layouts keep the top of the canvas clear, so the scoreboard tucks into the corner
     const y = options.manual ? height * 0.038 : insets ? 12 : isMobile ? 110 : 20
+    return { x, y, w, h, ui, isMobile }
+  }
+
+  // Scoreboard date: the one thing you should always be able to read at a glance.
+  function drawDate() {
+    const t = now()
+    const { x, y, w, h, ui, isMobile } = dateBox()
+    const d = dateParts(Math.min(to, Math.max(from, t)))
+    const done = commitsBefore(commitTimes, t)
+    const r = 10 * ui
     ctx.save()
     ctx.shadowColor = rgba(P.shadow, 0.35 * P.shadowK); ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
     ctx.fillStyle = rgba(C.bubbleBg, 0.86)
@@ -707,6 +722,56 @@ export function createGource(canvasEl, repo, options = {}) {
       drawClock(Math.min(to, Math.max(from, t)), isMobile ? x + w + 10 * ui : x - 10 * ui - h, y, h, ui)
       ctx.restore()
     }
+    ctx.textAlign = 'center'
+  }
+
+  // Commit caption: who, what they said, and how much it changed. Commit
+  // subjects name files and features, so any privacy mode hides them.
+  function drawCaption() {
+    if (hidePaths()) return
+    const t = now()
+    const cap = captionAt(captions, t)
+    if (!cap) return
+    const box = dateBox(), ui = box.ui
+    const cw = Math.min(width - 28, 300 * ui)
+    if (cw < 180 * ui) return // too narrow to say anything
+    const p = (t - cap.showTs) / cap.life
+    const IN = 0.08, OUT = 0.86
+    // history stops on the last commit, so its caption cannot fade in over time
+    const alpha = p < IN ? (t >= to ? 1 : p / IN) : p > OUT ? (1 - p) / (1 - OUT) : 1
+    if (alpha <= 0.02) return
+    const pad = 14 * ui, lineH = 17 * ui
+    ctx.save()
+    ctx.font = `600 ${13 * ui}px "Space Grotesk", sans-serif`
+    if (cap.wrapWidth !== cw) { cap.lines = wrapLines(cap.subject, cw - pad * 2, s => ctx.measureText(s).width); cap.wrapWidth = cw }
+    const ch = 24 * ui + cap.lines.length * lineH + 26 * ui
+    const x = box.isMobile && !options.manual ? box.x : box.x + box.w - cw
+    const y = box.y + box.h + 8 * ui + (reduceMotion || p >= IN || t >= to ? 0 : (1 - easeOutCubic(p / IN)) * -8 * ui)
+    const col = authorColor[cap.name] || C.dir
+    ctx.globalAlpha = alpha
+    ctx.shadowColor = rgba(P.shadow, 0.35 * P.shadowK); ctx.shadowBlur = 14 * ui; ctx.shadowOffsetY = 4 * ui
+    ctx.fillStyle = rgba(C.bubbleBg, 0.86)
+    roundRect(x, y, cw, ch, 10 * ui); ctx.fill()
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
+    ctx.strokeStyle = rgba(P.hudLine, 0.22); ctx.lineWidth = 1
+    roundRect(x, y, cw, ch, 10 * ui); ctx.stroke()
+    // author tick, in the colour of the contributor beaming at the files
+    ctx.fillStyle = rgba(col, 1)
+    ctx.fillRect(x + pad, y + 11 * ui, 3 * ui, 10 * ui)
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
+    setLetterSpacing(2 * ui)
+    ctx.font = `600 ${9 * ui}px "JetBrains Mono", monospace`
+    ctx.fillStyle = rgba(P.hudMuted, 1)
+    ctx.fillText(cap.hash ? `COMMIT ${cap.hash.toUpperCase()}` : 'COMMIT', x + pad + 9 * ui, y + 20 * ui)
+    setLetterSpacing(0)
+    ctx.font = `600 ${13 * ui}px "Space Grotesk", sans-serif`
+    ctx.fillStyle = rgba(P.hudInk, 1)
+    cap.lines.forEach((line, i) => ctx.fillText(line, x + pad, y + 24 * ui + (i + 1) * lineH - 3 * ui))
+    ctx.font = `500 ${9 * ui}px "JetBrains Mono", monospace`
+    ctx.fillStyle = rgba(P.hudSoft, 0.9)
+    const lines = cap.added + cap.removed > 0 ? ` · +${cap.added.toLocaleString('en-US')} −${cap.removed.toLocaleString('en-US')}` : ''
+    ctx.fillText(`${cap.name} · ${cap.files} file${cap.files === 1 ? '' : 's'}${lines}`, x + pad, y + ch - 11 * ui, cw - pad * 2)
+    ctx.restore()
     ctx.textAlign = 'center'
   }
 
@@ -768,9 +833,10 @@ export function createGource(canvasEl, repo, options = {}) {
     posCache = new Map(); presenceCache = new Map()
     fl = flight(dtWall, advanceOrbit)
     // ---- activity heat: recently changed files warm the whole chain up to root ----
-    const fresh = new Map()
+    const fresh = new Map(), alive = new Map()
     for (const n of visible) {
       if (n.type !== 'file') continue
+      if (presence(n) > 0.5) alive.set(n.lang, (alive.get(n.lang) || 0) + 1)
       const age = curTs - latestChange(n) // negative/NaN when the file is not born yet
       if (!(age >= 0)) continue
       const f = 1 - age / activityWindow
@@ -778,6 +844,7 @@ export function createGource(canvasEl, repo, options = {}) {
       fresh.set(n, f)
       for (let a = n.parent; a && a !== root; a = a.parent) { if ((fresh.get(a) || 0) >= f) break; fresh.set(a, f) }
     }
+    noteLanguages(alive)
     // where the action is: fresh files plus actors that are beaming
     const focus = []
     for (const [n, f] of fresh) if (n.type === 'file' && f > 0.3) { const [x, y] = graphPos(n); focus.push([x, y, f]) }
@@ -1203,6 +1270,7 @@ export function createGource(canvasEl, repo, options = {}) {
     lastHovered = dragging ? null : hovered
     drawCards()
     drawDate()
+    drawCaption()
     if (hovered && !dragging) {
       ctx.font = '12px "JetBrains Mono", monospace'
       const text = hidePaths() ? describeHidden(hovered, hovered.type === 'dir' && aliveFiles(hovered) ? aliveFiles(hovered) : null) : hovered.path + (collapsed.has(hovered) ? ` · ${aliveFiles(hovered)} files` : '')
@@ -1273,6 +1341,10 @@ export function createGource(canvasEl, repo, options = {}) {
     setClock(v) { showClock = !!v },
     setPrivacy(v) { privacy = normalizePrivacy(v) },
     get labelCount() { return lastLabelCount },
+    /** Files alive at the current moment per language, largest first: [{ key, label, color, files, share }]. */
+    languages() { return languages },
+    /** The commit caption on screen right now, or null (debug/test hook). */
+    caption() { return hidePaths() ? null : captionAt(captions, curTs) },
     avatarsReady(ms = 4000) { return avatarsSettled(ms) },
     get flyover() { return flyover },
     get autoPace() { return autoPace },

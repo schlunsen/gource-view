@@ -133,7 +133,7 @@ function Stage({ repo, label, repos, onPick }) {
       engine.current?.renderAt(data.stats.from, 0, 0)
     }
     resize()
-    engine.current = createGource(element, data, { manual: true, clock: false, interactive: false })
+    engine.current = createGource(element, data, { manual: true, clock: false, interactive: false, captions: false })
     resize()
     const observer = new ResizeObserver(resize); observer.observe(element.parentElement)
     clock.current = { progress: 0, seconds: 0 }
