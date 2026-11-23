@@ -47,6 +47,20 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
     ctx.globalCompositeOperation = 'source-over'
   }
 
+  // Commit activity along the progress rule, binned on the playback clock so a
+  // bar is passed at the moment its commits land (auto-pace bends history time).
+  let activity = null
+  function activityBins(n) {
+    const total = renderer.playbackSeconds || 1
+    if (activity?.length === n && activity.total === total) return activity
+    const bins = new Array(n).fill(0)
+    for (const c of data.commits) bins[Math.max(0, Math.min(n - 1, Math.floor(renderer.elapsed(c.ts) / total * n)))]++
+    const peak = Math.max(1, ...bins)
+    activity = bins.map(v => v / peak)
+    activity.total = total
+    return activity
+  }
+
   function chrome(progress) {
     const portrait = H > W, m = 60, titleMax = portrait ? W - 2 * m - 300 : 1450
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
@@ -56,6 +70,13 @@ export function createComposition({ ctx, data, config, renderer, W, H, palette }
     ctx.fillText(config.title || repoLabel(), m, 94, titleMax)
     ctx.font = `16px ${FONT_MONO}`; ctx.fillStyle = P.inkSoft
     ctx.fillText(`${repoLabel()}  ·  ${data.stats.commits} commits  ·  ${data.stats.authors} authors`, m, H - 50, W - 2 * m)
+    const bins = activityBins(Math.max(24, Math.min(160, Math.round((W - 2 * m) / 11)))), step = (W - 2 * m) / bins.length
+    bins.forEach((v, i) => {
+      if (!v) return
+      const h = Math.max(2, v * 14)
+      ctx.fillStyle = (i + 0.5) / bins.length <= progress ? P.accent : P.rule
+      ctx.fillRect(m + i * step, H - 28 - h, Math.max(1, step - 2), h)
+    })
     ctx.fillStyle = P.rule; ctx.fillRect(m, H - 26, W - 2 * m, 3)
     ctx.fillStyle = P.accent; ctx.fillRect(m, H - 26, (W - 2 * m) * progress, 3)
   }

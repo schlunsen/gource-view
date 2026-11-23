@@ -135,7 +135,7 @@ export default function CompareView({ primary, initial = [], privacy = 'off', ma
       const canvas = canvases.current.get(panel.name)
       if (!canvas) continue
       sizeCanvas(canvas) // the renderer reads these dimensions as it starts
-      try { engines.current.set(panel.name, createGource(canvas, panel.data, { manual: true, privacy, clock: false })) } catch { /* skipped below */ }
+      try { engines.current.set(panel.name, createGource(canvas, panel.data, { manual: true, privacy, clock: false, captions: false })) } catch { /* skipped below */ }
     }
     for (const [name, engine] of engines.current) if (!ready.some(p => p.name === name)) { engine.destroy(); engines.current.delete(name) }
   }, [ready, privacy, sizeCanvas])

@@ -58,6 +58,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeedState] = useState(SPEEDS.includes(+PARAMS.get('speed')) ? +PARAMS.get('speed') : 1)
   const [curTs, setCurTs] = useState(0)
+  const [languages, setLanguages] = useState([]) // files alive right now per language, from the renderer
   const [showStats, setShowStats] = useState(true)
 
   const speedRef = useRef(SPEEDS.includes(+PARAMS.get('speed')) ? +PARAMS.get('speed') : 1)
@@ -180,7 +181,7 @@ export default function App() {
             g.setClock(clockRef.current)
             gourceRef.current = g
             g.onTick = (t, p) => {
-              setCurTs(t); setPlaying(p); setClockHidden(g.clockHidden)
+              setCurTs(t); setPlaying(p); setClockHidden(g.clockHidden); setLanguages(g.languages())
               if (lastPlaying.current && !p) actions.current.syncUrl?.(t) // paused: freeze the moment in the URL
               lastPlaying.current = p
             }
@@ -671,9 +672,8 @@ export default function App() {
         {/* Legend */}
         {!compact && repo && !loading && (
           <div className="file-legend absolute bottom-3 right-3 hidden sm:flex flex-col gap-1 rounded-xl bg-panel/85 border border-line px-3 py-2 backdrop-blur-sm font-mono text-[10px] text-ink-500">
-            <LegendSwatch color={[255,160,58]} label="source" />
-            <LegendSwatch color={[58,190,255]} label="data / markup" />
-            <LegendSwatch color={[140,120,255]} label="assets" />
+            <span className="eyebrow">FILES NOW</span>
+            {languages.slice(0, 6).map(l => <LegendSwatch key={l.key} color={l.color} label={l.label} share={l.share} />)}
             <LegendSwatch color={[140,160,190]} label="folders" />
           </div>
         )}
@@ -686,6 +686,11 @@ export default function App() {
       <footer className="transport border-t border-line bg-panel px-3 py-3 sm:px-5" role="group" aria-label="Playback controls">
         <div className="activity-header"><span className="eyebrow">COMMIT ACTIVITY</span><span>{repo ? `${fmt(repo.stats.from)} — ${fmt(repo.stats.to)}` : 'Waiting for repository'}</span></div>
         <div className="activity-chart" aria-hidden="true">{activity.map((h, i) => <span key={i} className={`${i / activity.length * 100 <= played ? 'elapsed' : ''} ${bursts.bins.has(i) ? 'burst' : ''}`} style={{ height: `${Math.max(5, h * 100)}%` }} />)}</div>
+        {compact && repo && !loading && languages.length > 0 && (
+          <div className="language-strip font-mono" role="list" aria-label="Files by language right now">
+            {languages.slice(0, 5).map(l => <span key={l.key} role="listitem"><LegendSwatch color={l.color} label={l.label} share={l.share} /></span>)}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
           <button
             onClick={() => gourceRef.current && gourceRef.current.toggle()}
@@ -760,11 +765,12 @@ export default function App() {
   )
 }
 
-function LegendSwatch({ color, label }) {
+function LegendSwatch({ color, label, share }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: `rgb(${color[0]},${color[1]},${color[2]})` }} aria-hidden="true" />
       <span>{label}</span>
+      {share != null && <span className="legend-share tnum">{share < 0.005 ? '<1' : Math.round(share * 100)}%</span>}
     </div>
   )
 }
